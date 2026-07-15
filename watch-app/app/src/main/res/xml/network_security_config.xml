@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置
+  生产环境:
+    - 仅允许到 EMQX 服务器的 cleartext (MQTT 1883)
+    - 其余所有流量强制 HTTPS/TLS
+  如需切换到 MQTT TLS (8883)，将此文件中 39.105.86.77 端口改为 8883
+  并更新 build.gradle.kts 中的 mqtt_url 为 ssl://39.105.86.77:8883
+-->
+<network-security-config>
+    <!-- 默认：禁止所有明文流量 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- EMQX MQTT 服务器：允许明文 (生产前需切换为 TLS) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">39.105.86.77</domain>
+    </domain-config>
+
+    <!-- 调试专用：localhost 允许明文 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

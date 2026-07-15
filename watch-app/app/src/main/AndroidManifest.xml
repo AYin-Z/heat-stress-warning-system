@@ -51,10 +51,11 @@
         android:label="热应预警"
         android:supportsRtl="true"
         android:theme="@style/Theme.HeatStress"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:persistent="true"
         android:resizeableActivity="false"
         android:hardwareAccelerated="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="34">
 
         <!-- ============================================================

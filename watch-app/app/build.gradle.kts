@@ -16,21 +16,39 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.heatstress.watch"
         minSdk = 27        // Android 8.1 (A80)
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+
+        // MQTT 配置 — 通过 -Pmqtt_url=... 覆盖
+        val mqttUrl = project.findProperty("mqtt_url") as String? ?: "tcp://39.105.86.77:1883"
+        val mqttUser = project.findProperty("mqtt_user") as String? ?: ""
+        val mqttPass = project.findProperty("mqtt_pass") as String? ?: ""
+        buildConfigField("String", "MQTT_BROKER_URL", "\"$mqttUrl\"")
+        buildConfigField("String", "MQTT_USERNAME", "\"$mqttUser\"")
+        buildConfigField("String", "MQTT_PASSWORD", "\"$mqttPass\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
             signingConfig = signingConfigs.getByName("platform")
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
         debug {
+            isDebuggable = true
             signingConfig = signingConfigs.getByName("platform")
         }
     }
