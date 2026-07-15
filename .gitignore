@@ -24,3 +24,6 @@ Thumbs.db
 keystore/
 *.jks
 *.keystore
+.env
+.env.*
+!.env.example

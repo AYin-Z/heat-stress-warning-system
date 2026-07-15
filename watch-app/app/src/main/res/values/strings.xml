@@ -1,14 +1,4 @@
 <resources>
-    <string name="app_name">热应预警</string>
-    <string name="app_desc">热应激监测手表端</string>
-
-    <!-- MQTT -->
-    <string name="mqtt_broker">39.105.86.77</string>
-    <string name="mqtt_port">1883</string>
-
-    <!-- 状态 -->
-    <string name="status_connected">● 已连接</string>
-    <string name="status_disconnected">● 连接中…</string>
-    <string name="status_gps_fixed">📍 已定位</string>
-    <string name="status_gps_searching">📍 定位中</string>
+    <string name="app_name">热应激预警</string>
+    <string name="app_desc">A80 热应激监测手表端</string>
 </resources>

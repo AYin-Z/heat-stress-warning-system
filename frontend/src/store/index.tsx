@@ -69,14 +69,13 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'VITAL_DATA': {
       const data = action.payload;
-      const prev = state.devices[data.deviceId];
-      // 补全 riskLevel（服务端未计算时客户端判断）
+      // MQTT vital 是完整快照。直接替换可确保未佩戴后的缺失字段清除旧值。
       const riskLevel = data.riskLevel || getRiskLevel(data.coreTemp);
       return {
         ...state,
         devices: {
           ...state.devices,
-          [data.deviceId]: { ...prev, ...data, riskLevel },
+          [data.deviceId]: { ...data, riskLevel },
         },
       };
     }
@@ -151,9 +150,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const getMarkers = useCallback((): MapMarker[] => {
-    return Object.values(state.devices).map((d) => ({
+    return Object.values(state.devices).filter(
+      (d) => d.latitude != null && d.longitude != null
+    ).map((d) => ({
       deviceId: d.deviceId,
-      position: [d.longitude, d.latitude],
+      position: [d.longitude!, d.latitude!],
       name: state.officers[d.deviceId]?.name || d.deviceId,
       riskLevel: d.riskLevel || RL.Normal,
       vitalData: d,
@@ -165,6 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const allDevices = new Set([
       ...Object.keys(state.devices),
       ...Object.keys(state.officers),
+      ...state.onlineDevices,
     ]);
 
     allDevices.forEach((id) => {

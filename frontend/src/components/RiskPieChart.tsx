@@ -2,8 +2,14 @@
  * 风险概况饼图 — 右上角
  * 绿(正常) / 橙(普通预警) / 红(高风险) / 灰(离线)
  */
-import ReactECharts from 'echarts-for-react';
+import * as echarts from 'echarts/core';
+import { PieChart } from 'echarts/charts';
+import { TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+import EChartsReactCore from 'echarts-for-react/esm/core';
 import { useAppState } from '../store';
+
+echarts.use([PieChart, TooltipComponent, CanvasRenderer]);
 
 export default function RiskPieChart() {
   const { getRiskStats } = useAppState();
@@ -13,9 +19,6 @@ export default function RiskPieChart() {
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} 人 ({d}%)',
-    },
-    legend: {
-      show: false,
     },
     series: [
       {
@@ -77,7 +80,8 @@ export default function RiskPieChart() {
         zIndex: 50,
       }}
     >
-      <ReactECharts
+      <EChartsReactCore
+        echarts={echarts}
         option={option}
         style={{ width: '100%', height: '100%' }}
         opts={{ renderer: 'canvas' }}

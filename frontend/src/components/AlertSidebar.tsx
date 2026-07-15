@@ -2,7 +2,7 @@
  * 右侧预警历史侧边栏 — 可折叠
  */
 import { useState } from 'react';
-import { List, Tag, Typography, Button, Tooltip, Popconfirm, Badge, Space } from 'antd';
+import { Tag, Typography, Button, Tooltip, Popconfirm, Badge, Space } from 'antd';
 import {
   DoubleRightOutlined,
   DoubleLeftOutlined,
@@ -99,11 +99,13 @@ export default function AlertSidebar() {
           )}
 
           <div style={{ flex: 1, overflow: 'auto', padding: '0 4px' }}>
-            <List
-              dataSource={state.alertRecords}
-              locale={{ emptyText: <Text style={{ color: '#8c9bb0' }}>暂无预警记录</Text> }}
-              renderItem={(record) => (
-                <List.Item
+            {state.alertRecords.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center' }}>
+                <Text style={{ color: '#8c9bb0' }}>暂无预警记录</Text>
+              </div>
+            ) : state.alertRecords.map((record) => (
+                <div
+                  key={record.id}
                   style={{
                     padding: '8px 12px',
                     borderBottom: '1px solid #1a2d42',
@@ -147,13 +149,12 @@ export default function AlertSidebar() {
                         {dayjs(record.timestamp).format('HH:mm:ss')}
                       </Text>
                       <Text style={{ color: '#fa8c16', fontSize: 12, fontWeight: 500 }}>
-                        {record.coreTemp.toFixed(1)}℃
+                        {record.coreTemp != null ? `${record.coreTemp.toFixed(1)}℃` : '--'}
                       </Text>
                     </div>
                   </div>
-                </List.Item>
-              )}
-            />
+                </div>
+              ))}
           </div>
         </>
       )}

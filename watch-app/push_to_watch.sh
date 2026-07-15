@@ -1,40 +1,35 @@
-#!/bin/bash
-# 部署手表 APK 脚本
-# 用法: bash push_to_watch.sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APK="${1:-$SCRIPT_DIR/app/build/outputs/apk/release/app-release.apk}"
 
-WATCH_DIR="/home/ayin/Current_Works/热应激预警系统/watch-app"
-APK="$WATCH_DIR/app/build/outputs/apk/debug/app-debug.apk"
-TARGET="/system/priv-app/heatstress/heatstress.apk"
-
-echo "=== 1. 检查 APK ==="
-if [ ! -f "$APK" ]; then
-    echo "❌ APK 未找到: $APK"
-    echo "请先运行: cd $WATCH_DIR && ./gradlew assembleDebug"
+if [[ ! -f "$APK" ]]; then
+    echo "APK not found: $APK" >&2
     exit 1
 fi
-echo "✅ APK: $(ls -lh $APK | awk '{print $5}')"
 
-echo ""
-echo "=== 2. ADB Root ==="
-adb root
-sleep 2
+adb get-state >/dev/null
 
-echo ""
-echo "=== 3. Remount system ==="
-adb remount
+EXISTING_UID="$(adb shell dumpsys package com.heatstress.watch 2>/dev/null \
+    | sed -n 's/.*userId=\([0-9]*\).*/\1/p' | head -n 1 | tr -d '\r')"
 
-echo ""
-echo "=== 4. Push APK ==="
-adb shell "mkdir -p /system/priv-app/heatstress"
-adb push "$APK" "$TARGET"
+if [[ -n "$EXISTING_UID" && "$EXISTING_UID" != "1000" ]]; then
+    echo "An old non-system-UID build is installed (uid=$EXISTING_UID)." >&2
+    echo "Back up its data, uninstall it once, then rerun this script." >&2
+    exit 2
+fi
 
-echo ""
-echo "=== 5. Reboot ==="
-adb reboot
+adb install -r "$APK"
+adb shell am start -n com.heatstress.watch/.MainActivity
+sleep 3
 
-echo ""
-echo "✅ 部署完成！手表重启后自动启动"
-echo ""
-echo "验证: adb logcat | grep -i heatstress"
+RUNNING_PID="$(adb shell pidof com.heatstress.watch | tr -d '\r')"
+if [[ -z "$RUNNING_PID" ]]; then
+    echo "The app did not start after installation." >&2
+    exit 3
+fi
+
+echo "Installed: $APK"
+echo "Initialized A80 power policy (pid=$RUNNING_PID)."
+echo "Verify with: adb logcat -s HeatStress MqttManager NtpSync"

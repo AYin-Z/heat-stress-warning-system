@@ -1,76 +1,56 @@
-# HeatStress Bridge — 部署指南
+# HeatStress MQTT/HTTP Bridge
 
-MQTT ↔ HTTP 桥接服务，将 A80 手表的 MQTT 数据流转发到队友 HTTP API。
+桥接服务订阅 A80 MQTT 数据，将完整有效的生理帧转发到实际 Django watch API，
+并把 API 预警推回手表。
 
-## 架构
+## 线上链路
 
-```
-A80 ──MQTT──▶ EMQX(1883) ──▶ bridge.py ──HTTP──▶ 队友API(8000)
-                  ▲                                  │
-                  │                                  │ 预警/alerts
-                  │     ◀──── bridge.py ───HTTP──────┘
-                  │
-             大屏 ◀── WebSocket(8083)
+```text
+A80 -> EMQX localhost:1883 -> bridge.py
+    -> http://101.201.29.99:8001/api/watch/*
+    -> http://101.201.29.99:8001/dashboard/
 ```
 
-## 部署（在 EMQX 服务器上）
+API 基地址是 `8001`，不是旧文档中的 `8000`。
 
-```bash
-# 1. 上传文件
-scp bridge.py requirements.txt heatstress-bridge.service root@39.105.86.77:/opt/heatstress-bridge/
+## 行为
 
-# 2. SSH 到服务器
-ssh root@39.105.86.77
-
-# 3. 创建虚拟环境
-cd /opt/heatstress-bridge
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
-
-# 4. 安装并启动 systemd 服务
-cp heatstress-bridge.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now heatstress-bridge
-
-# 5. 查看日志
-journalctl -u heatstress-bridge -f
-```
+- MQTT 回调只解析并放入有界队列，HTTP 请求由工作线程处理。
+- 新设备通过 `/api/watch/register/` 幂等注册。
+- 只在心率、血氧、收缩压、舒张压和核心温度均有效时调用 `/upload/`。
+- 不再用 `75/98/120/80/37.0` 等默认值补齐缺失数据。
+- 累计步数按相邻采样计算步频。
+- `0/0` 定位、越界值和错误设备时间会被过滤。
+- API alert 仅发布一次，成功进入 MQTT 后再 ack。
 
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `BRIDGE_MQTT_BROKER` | localhost | EMQX 地址 |
-| `BRIDGE_MQTT_PORT` | 1883 | MQTT 端口 |
-| `BRIDGE_API_BASE` | http://101.201.29.99:8000 | 队友 API 地址 |
-| `BRIDGE_LOG_LEVEL` | INFO | 日志级别 |
-| `BRIDGE_ALERT_POLL_INTERVAL` | 10 | 拉取预警间隔(秒) |
+|---|---|---|
+| `BRIDGE_MQTT_BROKER` | `localhost` | EMQX 地址 |
+| `BRIDGE_MQTT_PORT` | `1883` | MQTT 端口 |
+| `BRIDGE_MQTT_USERNAME` | 空 | MQTT 用户名 |
+| `BRIDGE_MQTT_PASSWORD` | 空 | MQTT 密码 |
+| `BRIDGE_API_BASE` | `http://101.201.29.99:8001` | Django API 基址 |
+| `BRIDGE_API_TIMEOUT` | `6` | HTTP 超时秒数 |
+| `BRIDGE_API_RETRY` | `1` | HTTP 重试次数 |
+| `BRIDGE_WORKER_COUNT` | `4` | HTTP 工作线程数 |
+| `BRIDGE_QUEUE_SIZE` | `2000` | MQTT 消息队列上限 |
+| `BRIDGE_MQTT_PUBLISH_TIMEOUT` | `6` | QoS 1 预警发布确认超时秒数 |
+| `BRIDGE_ALERT_POLL_INTERVAL` | `15` | 预警轮询秒数 |
 
-## 数据流
-
-1. A80 手表发布 `watch/{deviceId}/vital` → MQTT
-2. bridge.py 收到消息 → 首次自动注册 → `POST /api/watch/upload/`
-3. 队友 API 返回 alert → bridge.py 推回 MQTT `watch/{deviceId}/alert`
-4. 大屏订阅 MQTT → 实时展示
-5. 后台线程定期拉取未读预警 → 推送 + ack
-
-## 本地测试
+## 部署
 
 ```bash
-# 从本地连接远程 EMQX 和 API
-export BRIDGE_MQTT_BROKER=39.105.86.77
-export BRIDGE_API_BASE=http://101.201.29.99:8000
-export BRIDGE_LOG_LEVEL=DEBUG
-pip install -r requirements.txt
-python bridge.py
+python3 -m venv /opt/heatstress-bridge/venv
+/opt/heatstress-bridge/venv/bin/pip install -r requirements.txt
+/opt/heatstress-bridge/venv/bin/python -m py_compile bridge.py
+
+install -m 0644 bridge.py /opt/heatstress-bridge/bridge.py
+install -m 0644 heatstress-bridge.service /etc/systemd/system/heatstress-bridge.service
+systemctl daemon-reload
+systemctl enable --now heatstress-bridge
+systemctl status heatstress-bridge
 ```
 
-## 模拟测试数据
-
-在另一终端用 mosquitto_pub 模拟手表上报：
-
-```bash
-mosquitto_pub -h 39.105.86.77 -p 1883 \
-  -t 'watch/A80-TEST01/vital' \
-  -m '{"deviceId":"A80-TEST01","heartRate":88,"spo2":96.5,"bloodPressure":"128/82","latitude":30.572,"longitude":104.066,"timestamp":1700000000000}'
-```
+更新线上文件前应创建带时间戳的备份，并在重启失败时回滚。

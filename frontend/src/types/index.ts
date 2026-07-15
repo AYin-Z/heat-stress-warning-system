@@ -52,15 +52,20 @@ export interface VitalData {
   timestamp: number;        // Unix 毫秒
 
   // 定位
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
   locationName?: string;    // 逆地理编码结果
 
   // 生理
-  heartRate: number;        // 心率 bpm
-  spo2: number;             // 血氧 %
-  bloodPressure: string;    // 血压 "120/80" mmHg
-  steps: number;            // 步数累计
+  heartRate?: number;       // 心率 bpm；未佩戴或无有效采样时缺省
+  spo2?: number;            // 血氧 %；未测得时缺省
+  bloodPressure?: string;   // 血压 "120/80" mmHg；未测得时缺省
+  steps?: number;           // 开机以来累计步数
+  batteryLevel?: number;
+  worn?: boolean;
+  dataQuality?: 'complete' | 'partial' | 'not_worn' | 'no_vitals';
+  firmwareVersion?: string;
 
   // 服务端计算结果（有延迟）
   coreTemp?: number;        // 核心温度预测值 ℃
@@ -80,7 +85,7 @@ export interface AlertRecord {
   timestamp: number;        // 触发时间 Unix 毫秒
   deviceId: string;
   officerName: string;
-  coreTemp: number;         // 触发时核心温度
+  coreTemp?: number;        // 触发时核心温度；后端未提供时缺省
   alertType: AlertType;
 }
 
@@ -91,8 +96,9 @@ export interface AlertRecord {
 export interface AlertPopupData {
   deviceId: string;
   officerName: string;
-  coreTemp: number;
+  coreTemp?: number;
   alertType: AlertType;
+  advice?: string;
 }
 
 // ============================================================

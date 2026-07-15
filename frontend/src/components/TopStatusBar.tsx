@@ -10,7 +10,12 @@ const { Text } = Typography;
 export default function TopStatusBar() {
   const { state } = useAppState();
   const online = state.onlineDevices.size;
-  const offline = Object.keys(state.officers).length - online;
+  const knownDevices = new Set([
+    ...Object.keys(state.officers),
+    ...Object.keys(state.devices),
+    ...state.onlineDevices,
+  ]);
+  const offline = Math.max(0, knownDevices.size - online);
 
   const totalAlerts = state.alertRecords.length;
 

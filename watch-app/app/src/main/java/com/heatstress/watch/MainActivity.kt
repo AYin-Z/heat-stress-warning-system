@@ -1,238 +1,204 @@
 package com.heatstress.watch
 
+import android.Manifest
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.util.Log
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.WindowManager
+import android.widget.TextView
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
-/**
- * 主 Activity — 伪 OS 入口
- *
- * 职责：
- * 1. 全屏 Kiosk 锁定（隐藏导航栏/状态栏/通知栏）
- * 2. 自动激活设备管理员
- * 3. LockTask 锁定 — 用户无法退出
- * 4. 启动 SensorService 前台采集
- */
 class MainActivity : Activity() {
 
-    companion object {
-        private const val TAG = "MainActivity"
-        private const val REQUEST_DEVICE_ADMIN = 1001
-    }
+    private lateinit var tvMqttStatus: TextView
+    private lateinit var tvBattery: TextView
+    private lateinit var tvHeartRate: TextView
+    private lateinit var tvSpo2: TextView
+    private lateinit var tvBloodPressure: TextView
+    private lateinit var tvCoreTemp: TextView
+    private lateinit var tvSteps: TextView
+    private lateinit var tvWear: TextView
+    private lateinit var tvGps: TextView
+    private lateinit var tvAlert: TextView
+    private lateinit var tvAdvice: TextView
 
-    private lateinit var dpm: DevicePolicyManager
-    private lateinit var adminComponent: ComponentName
+    private val stateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                SensorService.ACTION_STATE_UPDATE -> renderState(intent)
+                SensorService.ACTION_ALERT_UPDATE -> renderAlert(intent)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        adminComponent = ComponentName(this, DeviceAdminReceiver::class.java)
-
-        // 1. 全屏锁定
-        lockToKiosk()
-
-        // 2. 激活设备管理员（首次引导）
-        if (!dpm.isAdminActive(adminComponent)) {
-            activateDeviceAdmin()
-        } else {
-            // 已激活 → 直接进入 Kiosk
-            enforceKioskMode()
-        }
-
-        // 3. 启动前台数据采集服务
+        bindViews()
+        enterImmersiveMode()
+        requestRuntimePermissions()
+        JuWeiSystemApi.applyPowerSaveExemption(this)
         startSensorService()
+        enableManagedKioskIfProvisioned()
     }
 
-    // ============================================================
-    // 全屏 Kiosk 锁定
-    // ============================================================
-
-    private fun lockToKiosk() {
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+    override fun onStart() {
+        super.onStart()
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            stateReceiver,
+            IntentFilter().apply {
+                addAction(SensorService.ACTION_STATE_UPDATE)
+                addAction(SensorService.ACTION_ALERT_UPDATE)
+            }
         )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.apply {
-                hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            )
-        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(
+            Intent(SensorService.ACTION_REQUEST_STATE)
+        )
     }
 
-    // ============================================================
-    // 设备管理员激活
-    // ============================================================
-
-    private fun activateDeviceAdmin() {
-        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-            putExtra(
-                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "热应激预警系统需要设备管理员权限以保证执勤手表持续运行不被退出。\n\n" +
-                "点击「激活」后手表将锁定在本应用，无法退出。"
-            )
-        }
-        startActivityForResult(intent, REQUEST_DEVICE_ADMIN)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_DEVICE_ADMIN) {
-            if (resultCode == RESULT_OK) {
-                Log.i(TAG, "设备管理员已激活")
-                enforceKioskMode()
-            } else {
-                Log.w(TAG, "用户拒绝设备管理员 — 降级运行")
-                // 即使拒绝也尝试 LockTask（Android 5.0+ 不需要 DeviceAdmin）
-                startLockTaskIfPossible()
-            }
-        }
-    }
-
-    // ============================================================
-    // Kiosk 模式执行
-    // ============================================================
-
-    private fun enforceKioskMode() {
-        if (!dpm.isAdminActive(adminComponent)) return
-
+    override fun onStop() {
         try {
-            // 1. 将本应用加入 LockTask 白名单
-            val packages = arrayOf(packageName)
-            dpm.setLockTaskPackages(adminComponent, packages)
-            Log.i(TAG, "LockTask 白名单: $packageName")
-
-            // 2. 隐藏非必要系统 App
-            disableSystemApps()
-
-            // 3. 设置密码策略（可选：禁止设置屏幕锁）
-            try {
-                dpm.setPasswordQuality(adminComponent, DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)
-            } catch (_: Exception) {}
-
-            // 4. 禁用相机（执勤手表安全要求）
-            try {
-                dpm.setCameraDisabled(adminComponent, true)
-            } catch (_: Exception) {}
-
-            // 5. 启动 LockTask
-            startLockTask()
-            Log.i(TAG, "Kiosk 模式已激活")
-
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Kiosk 权限不足: ${e.message}")
-            startLockTaskIfPossible()
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(stateReceiver)
+        } catch (_: IllegalArgumentException) {
         }
+        super.onStop()
     }
 
-    /**
-     * 无需 DeviceAdmin 的 LockTask（Android 5.0+ 支持）
-     * 通过 adb shell dpm set-device-owner 也可以实现
-     */
-    private fun startLockTaskIfPossible() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                startLockTask()
-                Log.i(TAG, "LockTask 已启动 (无 DeviceAdmin)")
+    private fun bindViews() {
+        tvMqttStatus = findViewById(R.id.tvMqttStatus)
+        tvBattery = findViewById(R.id.tvBattery)
+        tvHeartRate = findViewById(R.id.tvHeartRate)
+        tvSpo2 = findViewById(R.id.tvSpo2)
+        tvBloodPressure = findViewById(R.id.tvBP)
+        tvCoreTemp = findViewById(R.id.tvCoreTemp)
+        tvSteps = findViewById(R.id.tvSteps)
+        tvWear = findViewById(R.id.tvWear)
+        tvGps = findViewById(R.id.tvGps)
+        tvAlert = findViewById(R.id.tvAlert)
+        tvAdvice = findViewById(R.id.tvAdvice)
+    }
+
+    private fun renderState(intent: Intent) {
+        val connected = intent.getBooleanExtra(SensorService.EXTRA_CONNECTED, false)
+        tvMqttStatus.text = if (connected) "中继已连接" else "中继连接中"
+        tvMqttStatus.setTextColor(Color.parseColor(if (connected) "#43D17B" else "#F4B942"))
+
+        tvBattery.text = "电量 ${intent.getIntExtra(SensorService.EXTRA_BATTERY, 0)}%"
+        tvHeartRate.text = nullableInt(intent, SensorService.EXTRA_HEART_RATE)?.toString() ?: "--"
+        tvSpo2.text = "血氧\n${nullableInt(intent, SensorService.EXTRA_SPO2)?.let { "$it%" } ?: "--%"}"
+
+        val sys = nullableInt(intent, SensorService.EXTRA_BP_SYS)
+        val dia = nullableInt(intent, SensorService.EXTRA_BP_DIA)
+        tvBloodPressure.text = "血压\n${if (sys != null && dia != null) "$sys/$dia" else "--/--"}"
+        val core = if (intent.hasExtra(SensorService.EXTRA_CORE_TEMP)) {
+            intent.getDoubleExtra(SensorService.EXTRA_CORE_TEMP, 0.0)
+        } else null
+        tvCoreTemp.text = if (core != null) "核心估算 %.1f℃".format(core) else "核心估算 --.-℃"
+        tvCoreTemp.setTextColor(
+            Color.parseColor(
+                when {
+                    core == null -> "#F4B942"
+                    core >= 39.0 -> "#FF6B6B"
+                    core >= 38.0 -> "#F49A72"
+                    else -> "#43D17B"
+                }
+            )
+        )
+        tvSteps.text = "步数\n${nullableInt(intent, SensorService.EXTRA_STEPS) ?: "--"}"
+
+        when (intent.getIntExtra(SensorService.EXTRA_WORN, -1)) {
+            1 -> {
+                tvWear.text = "佩戴正常"
+                tvWear.setTextColor(Color.parseColor("#43D17B"))
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "LockTask 启动失败: ${e.message}")
-        }
-    }
-
-    /**
-     * 禁用非必要系统 App
-     */
-    private fun disableSystemApps() {
-        val appsToDisable = listOf(
-            "com.android.browser",
-            "com.android.camera",
-            "com.android.calendar",
-            "com.android.calculator2",
-            "com.android.music",
-            "com.android.gallery3d",
-            "com.android.deskclock",
-            "com.android.mms",
-            "com.android.contacts",
-            "com.android.settings",  // 禁用设置防止退出
-        )
-
-        val appsToEnable = listOf(
-            packageName,  // 确保本应用不被误禁
-            "com.android.bluetooth",
-            "com.android.systemui",
-        )
-
-        appsToDisable.forEach { pkg ->
-            try {
-                dpm.setApplicationHidden(adminComponent, pkg, true)
-            } catch (e: Exception) {
-                // 应用不存在或已隐藏
+            0 -> {
+                tvWear.text = "请正确佩戴"
+                tvWear.setTextColor(Color.parseColor("#FF6B6B"))
+            }
+            else -> {
+                tvWear.text = "佩戴检测中"
+                tvWear.setTextColor(Color.parseColor("#B8C4CE"))
             }
         }
 
-        appsToEnable.forEach { pkg ->
-            try {
-                dpm.setApplicationHidden(adminComponent, pkg, false)
-            } catch (_: Exception) {}
+        val gpsAccuracy = intent.getFloatExtra(SensorService.EXTRA_GPS_ACCURACY, -1f)
+        tvGps.text = if (gpsAccuracy >= 0f) "GPS ${gpsAccuracy.toInt()}m" else "GPS 搜索中"
+        tvGps.setTextColor(Color.parseColor(if (gpsAccuracy >= 0f) "#43D17B" else "#B8C4CE"))
+
+        if (tvAlert.visibility != View.VISIBLE) {
+            tvAdvice.text = intent.getStringExtra(SensorService.EXTRA_SUMMARY) ?: "监测运行中"
         }
     }
 
-    // ============================================================
-    // 启动采集服务
-    // ============================================================
+    private fun renderAlert(intent: Intent) {
+        tvAlert.visibility = View.VISIBLE
+        tvAlert.text = intent.getStringExtra(SensorService.EXTRA_ALERT_TYPE) ?: "热应激预警"
+        tvAdvice.text = intent.getStringExtra(SensorService.EXTRA_ALERT_ADVICE) ?: "请立即停止活动并转移至阴凉处"
+        findViewById<View>(R.id.alertArea).setBackgroundColor(Color.parseColor("#4A171C"))
+    }
+
+    private fun nullableInt(intent: Intent, key: String): Int? =
+        if (intent.hasExtra(key)) intent.getIntExtra(key, 0) else null
+
+    private fun requestRuntimePermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val missing = arrayOf(
+            Manifest.permission.BODY_SENSORS,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), REQUEST_PERMISSIONS)
+    }
 
     private fun startSensorService() {
         val intent = Intent(this, SensorService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+    }
+
+    private fun enableManagedKioskIfProvisioned() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isDeviceOwnerApp(packageName)) return
+        try {
+            val admin = ComponentName(this, DeviceAdminReceiver::class.java)
+            dpm.setLockTaskPackages(admin, arrayOf(packageName))
+            startLockTask()
+        } catch (_: SecurityException) {
         }
     }
 
-    // ============================================================
-    // 生命周期
-    // ============================================================
+    private fun enterImmersiveMode() {
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+    }
 
     override fun onResume() {
         super.onResume()
-        lockToKiosk()
-    }
-
-    override fun onBackPressed() {
-        // 禁止退出 — Kiosk 模式下什么都不做
+        enterImmersiveMode()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) lockToKiosk()
+        if (hasFocus) enterImmersiveMode()
+    }
+
+    override fun onBackPressed() {
+        // The watch launcher is the operational surface; the Home key remains available when not managed.
+    }
+
+    companion object {
+        private const val REQUEST_PERMISSIONS = 1001
     }
 }

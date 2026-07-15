@@ -74,12 +74,11 @@ export default function AlertPopup() {
               fontSize: 24,
             }}
           >
-            {alert.coreTemp.toFixed(1)}℃
+            {alert.coreTemp != null ? `${alert.coreTemp.toFixed(1)}℃` : '--'}
           </Text>
         </Descriptions.Item>
       </Descriptions>
 
-      {/* 模拟大模型建议（实际从后端获取） */}
       <div
         style={{
           marginTop: 12,
@@ -89,12 +88,9 @@ export default function AlertPopup() {
           borderLeft: `3px solid ${isHighRisk ? '#ff4d4f' : '#fa8c16'}`,
         }}
       >
-        <Text style={{ color: '#8c9bb0', fontSize: 11 }}>AI 建议：</Text>
+        <Text style={{ color: '#8c9bb0', fontSize: 11 }}>处置建议：</Text>
         <Text style={{ color: '#e0e8f0', fontSize: 12, display: 'block', marginTop: 4 }}>
-          1. 请立即停止当前活动，寻找阴凉处休息
-        </Text>
-        <Text style={{ color: '#e0e8f0', fontSize: 12 }}>
-          2. 补充电解质水分，密切监测体温变化
+          {alert.advice || '请立即停止当前活动，转移至阴凉处休息并补充水分。'}
         </Text>
       </div>
     </Modal>

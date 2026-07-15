@@ -1,76 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    package="com.heatstress.watch"
+    android:sharedUserId="android.uid.system">
 
-    <!-- ============================================================
-         权限
-         ============================================================ -->
-
-    <!-- 开机自启 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- 前台服务 + 保活 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SET_TIME" />
 
-    <!-- 网络 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
-    <!-- 定位 (GPS) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
-    <!-- BLE 传感器 -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-
-    <!-- 身体传感器 (心率/血氧) -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
 
-    <!-- 系统级权限（Kiosk） -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- ============================================================
-         手表硬件特性声明
-         ============================================================ -->
-    <uses-feature android:name="android.hardware.location.gps" android:required="true" />
-    <uses-feature android:name="android.hardware.sensor.heartrate" android:required="false" />
-    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.heartrate" android:required="true" />
 
     <application
         android:allowBackup="false"
-        android:label="热应预警"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.HeatStress"
-        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:persistent="true"
         android:resizeableActivity="false"
-        android:hardwareAccelerated="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        tools:targetApi="34">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HeatStress"
+        android:usesCleartextTraffic="false">
 
-        <!-- ============================================================
-             Activity — 主界面（同时作为 Launcher）
-             ============================================================ -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true"
             android:launchMode="singleInstance"
             android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|keyboardHidden"
             android:showWhenLocked="true"
             android:turnScreenOn="true">
-
-            <!-- 作为 Home Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
@@ -79,28 +49,20 @@
             </intent-filter>
         </activity>
 
-        <!-- ============================================================
-             Service — 数据采集 + MQTT 上报（前台保活）
-             ============================================================ -->
         <service
             android:name=".SensorService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync|location" />
+            android:enabled="true"
+            android:exported="false" />
 
-        <!-- ============================================================
-             BroadcastReceiver — 开机自启
-             ============================================================ -->
         <receiver
             android:name=".BootReceiver"
+            android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 
-        <!-- ============================================================
-             DeviceAdminReceiver — 设备管理员 (Kiosk 接管)
-             ============================================================ -->
         <receiver
             android:name=".DeviceAdminReceiver"
             android:exported="true"
@@ -112,6 +74,5 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
-
     </application>
 </manifest>

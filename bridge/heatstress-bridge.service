@@ -14,9 +14,16 @@ RestartSec=10
 # 环境变量（部署时根据实际情况修改）
 Environment=BRIDGE_MQTT_BROKER=localhost
 Environment=BRIDGE_MQTT_PORT=1883
-Environment=BRIDGE_API_BASE=http://101.201.29.99:8000
+Environment=BRIDGE_API_BASE=http://101.201.29.99:8001
 Environment=BRIDGE_LOG_LEVEL=INFO
-Environment=BRIDGE_ALERT_POLL_INTERVAL=10
+Environment=BRIDGE_ALERT_POLL_INTERVAL=15
+Environment=BRIDGE_API_TIMEOUT=6
+Environment=BRIDGE_API_RETRY=1
+Environment=BRIDGE_WORKER_COUNT=4
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
 
 # 日志
 StandardOutput=journal

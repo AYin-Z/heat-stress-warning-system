@@ -35,7 +35,7 @@ function getShape(deviceId: string): string {
 // 占位：高德 API Key — 需要用户提供
 // ============================================================
 
-const AMAP_KEY = 'cecd4c961bb0db445f26d4bed2ff3496';
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
 const AMAP_VERSION = '2.0';
 
 // ============================================================
@@ -57,6 +57,12 @@ export default function MapView() {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!AMAP_KEY) {
+      setError('地图服务未配置');
+      setLoading(false);
+      return;
+    }
 
     AMapLoader.load({
       key: AMAP_KEY,
@@ -80,7 +86,7 @@ export default function MapView() {
         setLoading(false);
       })
       .catch((err: Error) => {
-        console.error('[Map] Load failed:', err);
+        console.warn('[Map] Load failed:', err);
         setError(err.message);
         setLoading(false);
       });
@@ -112,6 +118,7 @@ export default function MapView() {
 
     // 更新/新增标记
     Object.values(state.devices).forEach((device) => {
+      if (device.latitude == null || device.longitude == null) return;
       const deviceId = device.deviceId;
       const riskLevel = device.riskLevel || RiskLevel.Normal;
       const color = RISK_COLORS[riskLevel];
@@ -174,8 +181,8 @@ export default function MapView() {
               border: 1px solid ${color}60;
             ">
               <b>${name}</b><br/>
-              💓 ${device.heartRate} bpm | 🩸 ${device.spo2}%<br/>
-              🌡 ${device.coreTemp?.toFixed(1) || '--'}℃
+              心率 ${device.heartRate ?? '--'} bpm | 血氧 ${device.spo2 ?? '--'}%<br/>
+              核心温度 ${device.coreTemp?.toFixed(1) || '--'}℃
             </div>`,
             offset: new (window as any).AMap.Pixel(0, -60),
           });
@@ -204,7 +211,7 @@ export default function MapView() {
         justifyContent: 'center',
         background: '#0a1628',
       }}>
-        <Spin tip="加载地图中..." size="large">
+        <Spin description="加载地图中..." size="large">
           <div style={{ padding: 50 }} />
         </Spin>
       </div>
@@ -223,14 +230,7 @@ export default function MapView() {
         flexDirection: 'column',
         gap: 8,
       }}>
-        <div>⚠ 地图加载失败</div>
-        <div style={{ fontSize: 12, color: '#8c9bb0', maxWidth: 300, textAlign: 'center' }}>
-          {error}
-          <br /><br />
-          请确认已配置有效的高德地图 API Key
-          <br />
-          将 AMAP_KEY 替换为真实值：src/components/MapView.tsx
-        </div>
+        <div>{error || '地图不可用'}</div>
       </div>
     );
   }

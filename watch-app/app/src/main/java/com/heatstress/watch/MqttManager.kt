@@ -2,194 +2,236 @@ package com.heatstress.watch
 
 import android.util.Log
 import com.google.gson.Gson
-import kotlinx.coroutines.*
-import org.eclipse.paho.client.mqttv3.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
+import org.eclipse.paho.client.mqttv3.MqttClient
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions
+import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-/**
- * MQTT 管理器 — 连接 EMQX 中继服务器
- *
- * Topic 约定:
- *   watch/{deviceId}/vital   — 生理数据上报
- *   watch/{deviceId}/alert   — 接收预警推送
- *   watch/{deviceId}/status  — 设备在线状态
- */
 class MqttManager(
-    deviceId: String,
-    private val offlineQueue: OfflineQueue? = null
+    val deviceId: String,
+    private val offlineQueue: OfflineQueue
 ) {
-    companion object {
-        private const val TAG = "MqttManager"
-        // 通过 BuildConfig 配置，默认指向公网 EMQX
-        // 本地调试: ./gradlew assembleDebug -Pmqtt_url=tcp://localhost:1883
-        private val BROKER_URL = BuildConfig.MQTT_BROKER_URL
-        private val USERNAME = BuildConfig.MQTT_USERNAME
-        private val PASSWORD = BuildConfig.MQTT_PASSWORD
-        private const val CLIENT_ID_PREFIX = "watch-android-"
-        private const val QOS = 1
-        private const val KEEP_ALIVE = 30
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val gson = Gson()
+    private val statusTopic = "watch/$deviceId/status"
+    private val vitalTopic = "watch/$deviceId/vital"
+    private val alertTopic = "watch/$deviceId/alert"
+
+    @Volatile private var connected = false
+    @Volatile private var stopped = false
+    private var flushJob: Job? = null
+    private var reconnectJob: Job? = null
+
+    private val client = MqttClient(
+        BuildConfig.MQTT_BROKER_URL,
+        "$CLIENT_ID_PREFIX$deviceId",
+        MemoryPersistence()
+    )
+
+    var onAlertReceived: ((String) -> Unit)? = null
+    var onConnectionChanged: ((Boolean) -> Unit)? = null
+
+    init {
+        client.setCallback(object : MqttCallbackExtended {
+            override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                connected = true
+                reconnectJob = null
+                Log.i(TAG, "Connected to $serverURI reconnect=$reconnect")
+                onConnectionChanged?.invoke(true)
+                scope.launch { initializeSession() }
+            }
+
+            override fun connectionLost(cause: Throwable?) {
+                connected = false
+                Log.w(TAG, "Connection lost: ${cause?.message}")
+                onConnectionChanged?.invoke(false)
+                scheduleReconnect()
+            }
+
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                if (topic == alertTopic && message != null) {
+                    onAlertReceived?.invoke(String(message.payload, Charsets.UTF_8))
+                }
+            }
+
+            override fun deliveryComplete(token: IMqttDeliveryToken?) = Unit
+        })
     }
 
-    @Volatile var deviceId: String = deviceId
-        private set
-
-    private var client: MqttClient? = null
-    @Volatile private var connected = false
-
-    // 回调
-    var onAlertReceived: ((String) -> Unit)? = null  // 收到的预警建议文本
-
-    /**
-     * 连接 EMQX
-     */
-    suspend fun connect() = withContext(Dispatchers.IO) {
-        try {
-            val clientId = "$CLIENT_ID_PREFIX$deviceId"
-            client = MqttClient(BROKER_URL, clientId, MemoryPersistence()).apply {
-                val options = MqttConnectOptions().apply {
-                    isCleanSession = true
-                    connectionTimeout = 10
-                    keepAliveInterval = KEEP_ALIVE
-                    isAutomaticReconnect = true
-                    maxInflight = 10
-                    // 凭证（非空时启用鉴权）
-                    if (USERNAME.isNotEmpty()) userName = USERNAME
-                    if (PASSWORD.isNotEmpty()) password = PASSWORD.toCharArray()
-                }
-
-                setCallback(object : MqttCallback {
-                    override fun connectionLost(cause: Throwable?) {
-                        Log.w(TAG, "MQTT 连接断开: ${cause?.message}")
-                        connected = false
-                    }
-
-                    override fun messageArrived(topic: String?, message: MqttMessage?) {
-                        topic?.let { t ->
-                            message?.payload?.let { payload ->
-                                val text = String(payload, Charsets.UTF_8)
-                                if (t.endsWith("/alert")) {
-                                    onAlertReceived?.invoke(text)
-                                }
-                            }
-                        }
-                    }
-
-                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-                })
-
-                connect(options)
-                connected = true
-                Log.i(TAG, "MQTT 已连接: $BROKER_URL")
-
-                // 订阅预警推送
-                subscribe("watch/$deviceId/alert", QOS)
-
-                // 发布上线状态
-                publishStatus(true)
-
-                // 重连后刷新离线队列
-                flushOfflineQueue()
+    suspend fun connectUntilAvailable() = withContext(Dispatchers.IO) {
+        var delayMs = INITIAL_RETRY_MS
+        while (isActive && !stopped && !client.isConnected) {
+            try {
+                client.connect(connectOptions())
+                return@withContext
+            } catch (e: Exception) {
+                connected = false
+                onConnectionChanged?.invoke(false)
+                Log.w(TAG, "Connect failed; retry in ${delayMs}ms: ${e.message}")
+                delay(delayMs)
+                delayMs = (delayMs * 2).coerceAtMost(MAX_RETRY_MS)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "MQTT 连接失败: ${e.message}")
-            connected = false
         }
     }
 
-    /**
-     * 上报生理数据 — 离线时入队缓冲
-     */
     suspend fun publishVital(data: VitalReport) = withContext(Dispatchers.IO) {
-        val json = Gson().toJson(data)
-        if (!connected) {
-            // 离线 → 写入本地队列
-            offlineQueue?.enqueue("watch/$deviceId/vital", json)
-            Log.d(TAG, "离线缓冲: 队列大小=${offlineQueue?.size()}")
+        val payload = gson.toJson(data)
+        if (!isConnected()) {
+            offlineQueue.enqueue(vitalTopic, payload)
             return@withContext
         }
         try {
-            client?.publish(
-                "watch/$deviceId/vital",
-                MqttMessage(json.toByteArray()).apply { qos = QOS }
-            )
+            publish(vitalTopic, payload, retained = false)
         } catch (e: Exception) {
-            // 发送失败也入队
-            offlineQueue?.enqueue("watch/$deviceId/vital", json)
-            Log.w(TAG, "发送失败，已入队: ${e.message}")
+            connected = false
+            offlineQueue.enqueue(vitalTopic, payload)
+            onConnectionChanged?.invoke(false)
+            Log.w(TAG, "Vital publish queued: ${e.message}")
         }
     }
 
-    /**
-     * 发布上下线状态 — 不入队（低价值数据）
-     */
-    fun publishStatus(online: Boolean) {
-        if (!connected) return
+    fun publishStatus(
+        online: Boolean,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        batteryLevel: Int? = null
+    ) {
+        if (!isConnected()) return
+        val payload = linkedMapOf<String, Any>(
+            "status" to if (online) "online" else "offline",
+            "timestamp" to System.currentTimeMillis()
+        )
+        if (latitude != null) payload["latitude"] = latitude
+        if (longitude != null) payload["longitude"] = longitude
+        if (batteryLevel != null) payload["batteryLevel"] = batteryLevel
         try {
-            client?.publish(
-                "watch/$deviceId/status",
-                MqttMessage(
-                    """{"status":"${if (online) "online" else "offline"}"}""".toByteArray()
-                ).apply { qos = QOS }
-            )
-        } catch (_: Exception) {}
-    }
-
-    /**
-     * 离线队列回传
-     */
-    private suspend fun flushOfflineQueue() {
-        val queue = offlineQueue ?: return
-        val pending = queue.dequeuePending(50)
-        if (pending.isEmpty()) return
-
-        Log.i(TAG, "开始回传离线数据: ${pending.size} 条")
-        var sent = 0
-        for ((id, topic, payload) in pending) {
-            try {
-                client?.publish(
-                    topic,
-                    MqttMessage(payload.toByteArray()).apply { qos = QOS }
-                )
-                queue.markSent(id)
-                sent++
-            } catch (e: Exception) {
-                queue.markRetry(id)
-                Log.w(TAG, "回传失败 id=$id: ${e.message}")
-            }
+            publish(statusTopic, gson.toJson(payload), retained = true)
+        } catch (e: Exception) {
+            Log.w(TAG, "Status publish failed: ${e.message}")
         }
-        Log.i(TAG, "离线数据回传完成: $sent/${pending.size}")
     }
 
-    /**
-     * 断开连接
-     */
+    fun isConnected(): Boolean = connected && client.isConnected
+
     fun disconnect() {
+        stopped = true
+        flushJob?.cancel()
+        reconnectJob?.cancel()
         try {
             publishStatus(false)
-            client?.disconnect()
-            client?.close()
-        } catch (_: Exception) {}
+            client.disconnect(2_000)
+        } catch (_: Exception) {
+        }
+        try {
+            client.close()
+        } catch (_: Exception) {
+        }
         connected = false
+        scope.cancel()
     }
 
-    fun isConnected(): Boolean = connected
+    private fun connectOptions(): MqttConnectOptions = MqttConnectOptions().apply {
+        isCleanSession = false
+        connectionTimeout = 8
+        keepAliveInterval = 30
+        isAutomaticReconnect = false
+        maxInflight = 20
+        setWill(statusTopic, offlineStatusPayload(), QOS, true)
+        if (BuildConfig.MQTT_USERNAME.isNotBlank()) userName = BuildConfig.MQTT_USERNAME
+        if (BuildConfig.MQTT_PASSWORD.isNotBlank()) password = BuildConfig.MQTT_PASSWORD.toCharArray()
+        if (BuildConfig.MQTT_FALLBACK_URL.isNotBlank()) {
+            serverURIs = arrayOf(BuildConfig.MQTT_BROKER_URL, BuildConfig.MQTT_FALLBACK_URL)
+        }
+    }
+
+    private suspend fun initializeSession() {
+        try {
+            client.subscribe(alertTopic, QOS)
+            publishStatus(true)
+            flushOfflineQueue()
+        } catch (e: Exception) {
+            Log.w(TAG, "Session initialization failed: ${e.message}")
+        }
+    }
+
+    @Synchronized
+    private fun scheduleReconnect() {
+        if (stopped || reconnectJob?.isActive == true) return
+        reconnectJob = scope.launch { connectUntilAvailable() }
+    }
+
+    private fun flushOfflineQueue() {
+        if (flushJob?.isActive == true) return
+        flushJob = scope.launch {
+            var sent = 0
+            while (isActive && isConnected()) {
+                val batch = offlineQueue.dequeuePending(FLUSH_BATCH_SIZE)
+                if (batch.isEmpty()) break
+                for ((id, topic, payload) in batch) {
+                    if (!isConnected()) return@launch
+                    try {
+                        publish(topic, payload, retained = false)
+                        offlineQueue.markSent(id)
+                        sent++
+                    } catch (e: Exception) {
+                        offlineQueue.markRetry(id)
+                        Log.w(TAG, "Queue flush paused at id=$id: ${e.message}")
+                        return@launch
+                    }
+                }
+                delay(100)
+            }
+            if (sent > 0) Log.i(TAG, "Flushed $sent queued records")
+        }
+    }
+
+    @Synchronized
+    private fun publish(topic: String, payload: String, retained: Boolean) {
+        if (!client.isConnected) throw IllegalStateException("MQTT disconnected")
+        client.publish(topic, MqttMessage(payload.toByteArray(Charsets.UTF_8)).apply {
+            qos = QOS
+            isRetained = retained
+        })
+    }
+
+    private fun offlineStatusPayload(): ByteArray =
+        "{\"status\":\"offline\"}".toByteArray(Charsets.UTF_8)
+
+    companion object {
+        private const val TAG = "MqttManager"
+        private const val CLIENT_ID_PREFIX = "a80-heatstress-"
+        private const val QOS = 1
+        private const val INITIAL_RETRY_MS = 2_000L
+        private const val MAX_RETRY_MS = 60_000L
+        private const val FLUSH_BATCH_SIZE = 100
+    }
 }
 
-/**
- * 生理数据上报格式
- * 与前端 types/index.ts 中的 VitalData 对齐
- */
 data class VitalReport(
     val deviceId: String,
-    val timestamp: Long = System.currentTimeMillis(),
-
-    // 定位
-    val latitude: Double,
-    val longitude: Double,
-
-    // 生理
-    val heartRate: Int,         // bpm
-    val spo2: Double,           // %
-    val bloodPressure: String,  // "120/80"
-    val steps: Int,
+    val timestamp: Long,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val gpsAccuracy: Float? = null,
+    val heartRate: Int? = null,
+    val spo2: Int? = null,
+    val bloodPressure: String? = null,
+    val coreTemp: Double? = null,
+    val coreTempSource: String? = null,
+    val steps: Int? = null,
+    val batteryLevel: Int,
+    val worn: Boolean? = null,
+    val dataQuality: String,
+    val firmwareVersion: String = BuildConfig.VERSION_NAME
 )

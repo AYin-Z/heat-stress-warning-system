@@ -90,21 +90,21 @@ export default function OfficerDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <DataCard
           label="心率"
-          value={device.heartRate}
+          value={device.heartRate ?? '--'}
           unit="bpm"
           icon={<HeartOutlined />}
-          color={device.heartRate > 120 ? '#ff4d4f' : '#52c41a'}
+          color={device.heartRate != null && device.heartRate > 120 ? '#ff4d4f' : '#52c41a'}
         />
         <DataCard
           label="血氧"
-          value={device.spo2}
+          value={device.spo2 ?? '--'}
           unit="%"
           icon={<DashboardOutlined />}
-          color={device.spo2 < 95 ? '#fa8c16' : '#52c41a'}
+          color={device.spo2 != null && device.spo2 < 95 ? '#fa8c16' : '#52c41a'}
         />
         <DataCard
           label="血压"
-          value={device.bloodPressure}
+          value={device.bloodPressure ?? '--/--'}
           unit="mmHg"
           color="#40a9ff"
         />
@@ -145,7 +145,11 @@ export default function OfficerDetail() {
       {/* 位置 */}
       <div style={{ marginTop: 12 }}>
         <Text style={{ color: '#8c9bb0', fontSize: 12 }}>
-          <EnvironmentOutlined /> 位置: {device.locationName || `${device.latitude?.toFixed(4)}, ${device.longitude?.toFixed(4)}`}
+          <EnvironmentOutlined /> 位置: {device.locationName || (
+            device.latitude != null && device.longitude != null
+              ? `${device.latitude.toFixed(4)}, ${device.longitude.toFixed(4)}`
+              : '暂无有效定位'
+          )}
         </Text>
       </div>
 

@@ -14,17 +14,18 @@
  * └────────────────────────────┴─────────────┘
  */
 
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { ConfigProvider, theme } from 'antd';
 import { AppProvider, useAppState } from './store';
 import { mqttService } from './services/mqtt';
 import TopStatusBar from './components/TopStatusBar';
-import RiskPieChart from './components/RiskPieChart';
 import AlertSidebar from './components/AlertSidebar';
 import AlertPopup from './components/AlertPopup';
-import OfficerDetail from './components/OfficerDetail';
-import MapView from './components/MapView';
 import type { VitalData, AlertPopupData, AlertRecord } from './types';
+
+const MapView = lazy(() => import('./components/MapView'));
+const RiskPieChart = lazy(() => import('./components/RiskPieChart'));
+const OfficerDetail = lazy(() => import('./components/OfficerDetail'));
 
 function AppInner() {
   const { dispatch } = useAppState();
@@ -76,26 +77,6 @@ function AppInner() {
     };
   }, [dispatch]);
 
-  // ============================================================
-  // 模拟注册一些测试人员（开发用，实际从后端加载）
-  // ============================================================
-
-  useEffect(() => {
-    // TODO: 从后端 API 加载人员列表
-    dispatch({
-      type: 'REGISTER_OFFICER',
-      payload: { deviceId: 'A80-001', name: '赵建国', policeId: 'P2021001', age: 35, gender: '男' },
-    });
-    dispatch({
-      type: 'REGISTER_OFFICER',
-      payload: { deviceId: 'A80-002', name: '李明', policeId: 'P2021002', age: 28, gender: '男' },
-    });
-    dispatch({
-      type: 'REGISTER_OFFICER',
-      payload: { deviceId: 'A80-003', name: '王芳', policeId: 'P2021003', age: 31, gender: '女' },
-    });
-  }, [dispatch]);
-
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* 顶部状态栏 */}
@@ -103,11 +84,16 @@ function AppInner() {
 
       {/* 主体：地图 + 右侧面板 */}
       <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
-        {/* 地图 */}
-        <MapView />
+        <Suspense fallback={null}>
+          {/* 地图 */}
+          <MapView />
 
-        {/* 右上角饼图 */}
-        <RiskPieChart />
+          {/* 右上角饼图 */}
+          <RiskPieChart />
+
+          {/* 民警详情弹窗 */}
+          <OfficerDetail />
+        </Suspense>
 
         {/* 右侧预警历史 */}
         <AlertSidebar />
@@ -115,8 +101,6 @@ function AppInner() {
         {/* 预警弹窗 */}
         <AlertPopup />
 
-        {/* 民警详情弹窗 */}
-        <OfficerDetail />
       </div>
     </div>
   );

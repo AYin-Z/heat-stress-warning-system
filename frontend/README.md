@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# React MQTT 大屏
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+这是直接订阅 EMQX WebSocket 的可选前端，不是当前部署在 `8001/dashboard/` 的
+Django 大屏源码。
 
-Currently, two official plugins are available:
+## 配置
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+在 `.env.local` 中提供：
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+VITE_MQTT_BROKER_URL=ws://39.105.86.77:8083/mqtt
+VITE_MQTT_USERNAME=
+VITE_MQTT_PASSWORD=
+VITE_AMAP_KEY=
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+不要把生产凭据和高德 Key 提交到仓库。
+
+## 开发与构建
+
+```bash
+npm install
+npm run dev
+npm run build
+```
+
+前端接受可空的 HR、SpO2、血压和 GPS 字段；vital 数据也会刷新在线状态，
+90 秒未收到 vital/status 时自动标记离线。
