@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Kiosk 所需策略 -->
+    <uses-policies>
+        <limit-password />
+        <force-lock />
+        <disable-camera />
+        <disable-keyguard-features />
+        <reset-password />
+        <watch-login />
+    </uses-policies>
+
+    <!-- Android 8.1 冻结应用所需 (API ≥ 21) -->
+    <force-lock />
+</device-admin>

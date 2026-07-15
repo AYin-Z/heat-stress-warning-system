@@ -1,0 +1,27 @@
+[Unit]
+Description=HeatStress MQTT-HTTP Bridge
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/heatstress-bridge
+ExecStart=/opt/heatstress-bridge/venv/bin/python /opt/heatstress-bridge/bridge.py
+Restart=always
+RestartSec=10
+
+# 环境变量（部署时根据实际情况修改）
+Environment=BRIDGE_MQTT_BROKER=localhost
+Environment=BRIDGE_MQTT_PORT=1883
+Environment=BRIDGE_API_BASE=http://101.201.29.99:8000
+Environment=BRIDGE_LOG_LEVEL=INFO
+Environment=BRIDGE_ALERT_POLL_INTERVAL=10
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=heatstress-bridge
+
+[Install]
+WantedBy=multi-user.target

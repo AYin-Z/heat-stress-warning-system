@@ -1,0 +1,11 @@
+<resources>
+    <!-- 手表黑底主题 — 无标题栏、全屏 -->
+    <style name="Theme.HeatStress" parent="android:Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+    </style>
+</resources>

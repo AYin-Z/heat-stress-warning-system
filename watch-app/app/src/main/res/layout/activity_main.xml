@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:keepScreenOn="true">
+
+    <!-- ============================================================
+         手表主界面 — 极简信息展示
+         320×380 分辨率优化
+         ============================================================ -->
+
+    <!-- 顶部：设备状态 -->
+    <LinearLayout
+        android:id="@+id/statusBar"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:layout_alignParentTop="true"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="#0a1628">
+
+        <TextView
+            android:id="@+id/tvMqttStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● 连接中..."
+            android:textColor="#52c41a"
+            android:textSize="11sp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/tvBattery"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔋 --%"
+            android:textColor="#8c9bb0"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
+    <!-- 中央：核心数据区 -->
+    <LinearLayout
+        android:id="@+id/dataArea"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="16dp">
+
+        <!-- 心率 — 最大号 -->
+        <TextView
+            android:id="@+id/tvHeartRate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--"
+            android:textColor="#52c41a"
+            android:textSize="72sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-light" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="bpm"
+            android:textColor="#8c9bb0"
+            android:textSize="14sp"
+            android:layout_marginTop="-4dp" />
+
+        <!-- 分割线 -->
+        <View
+            android:layout_width="80dp"
+            android:layout_height="1dp"
+            android:background="#1a2d42"
+            android:layout_marginVertical="12dp" />
+
+        <!-- 其他指标 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/tvSpo2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="SpO₂\n--%"
+                android:textColor="#40a9ff"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp" />
+
+            <TextView
+                android:id="@+id/tvSteps"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="步数\n--"
+                android:textColor="#9254de"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp" />
+
+        </LinearLayout>
+
+        <!-- 血压 -->
+        <TextView
+            android:id="@+id/tvBP"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="血压 --/--"
+            android:textColor="#8c9bb0"
+            android:textSize="11sp"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+
+    <!-- 底部：预警提示区 -->
+    <LinearLayout
+        android:id="@+id/alertArea"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:padding="12dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:background="#0d1b2a">
+
+        <TextView
+            android:id="@+id/tvAlert"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#8c9bb0"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvAdvice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="正常执勤中"
+            android:textColor="#52c41a"
+            android:textSize="11sp"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+</RelativeLayout>

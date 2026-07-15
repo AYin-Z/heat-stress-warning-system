@@ -1,0 +1,26 @@
+# Android
+.gradle/
+build/
+*.apk
+*.aab
+*.dex
+local.properties
+*.iml
+.idea/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Bridge
+bridge/__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+keystore/
+*.jks
+*.keystore
