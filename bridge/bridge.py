@@ -27,6 +27,7 @@ MQTT_PASSWORD = os.environ.get("BRIDGE_MQTT_PASSWORD", "")
 MQTT_TOPIC_VITAL = os.environ.get("BRIDGE_MQTT_TOPIC_VITAL", "watch/+/vital")
 MQTT_TOPIC_STATUS = os.environ.get("BRIDGE_MQTT_TOPIC_STATUS", "watch/+/status")
 MQTT_ALERT_TOPIC_TPL = "watch/{device_id}/alert"
+MQTT_TIME_TOPIC_TPL = "watch/{device_id}/time"
 
 API_BASE = os.environ.get("BRIDGE_API_BASE", "http://101.201.29.99:8001")
 API_TIMEOUT = float(os.environ.get("BRIDGE_API_TIMEOUT", "6"))
@@ -384,6 +385,29 @@ def forward_status(mqtt_id: str, payload: dict[str, Any]) -> None:
         registry.update(mqtt_id, bind_status=bind_status)
 
 
+def publish_time_sync(mqtt_id: str) -> bool:
+    topic = MQTT_TIME_TOPIC_TPL.format(device_id=mqtt_id)
+    payload = json.dumps(
+        {
+            "timestamp": int(time.time() * 1000),
+            "source": "heatstress-bridge",
+        }
+    )
+    info = mqtt_client.publish(topic, payload, qos=1, retain=False)
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        log.warning("[%s] Time sync MQTT publish failed: rc=%s", mqtt_id, info.rc)
+        return False
+    try:
+        info.wait_for_publish(timeout=MQTT_PUBLISH_TIMEOUT)
+    except (RuntimeError, ValueError) as exc:
+        log.warning("[%s] Time sync MQTT confirmation failed: %s", mqtt_id, exc)
+        return False
+    if not info.is_published():
+        log.warning("[%s] Time sync MQTT confirmation timed out", mqtt_id)
+        return False
+    return True
+
+
 def alert_id(alert: dict[str, Any]) -> Optional[int]:
     try:
         return int(alert["id"]) if alert.get("id") is not None else None
@@ -463,6 +487,8 @@ running = True
 
 
 def process_message(kind: str, device_id: str, payload: dict[str, Any]) -> None:
+    if kind == "status" and payload.get("status") == "online":
+        publish_time_sync(device_id)
     if not ensure_registered(device_id):
         return
     if kind == "vital":

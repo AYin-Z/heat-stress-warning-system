@@ -27,6 +27,7 @@ class MqttManager(
     private val statusTopic = "watch/$deviceId/status"
     private val vitalTopic = "watch/$deviceId/vital"
     private val alertTopic = "watch/$deviceId/alert"
+    private val timeTopic = "watch/$deviceId/time"
 
     @Volatile private var connected = false
     @Volatile private var stopped = false
@@ -40,6 +41,7 @@ class MqttManager(
     )
 
     var onAlertReceived: ((String) -> Unit)? = null
+    var onTimeSyncReceived: ((String) -> Unit)? = null
     var onConnectionChanged: ((Boolean) -> Unit)? = null
 
     init {
@@ -62,6 +64,8 @@ class MqttManager(
             override fun messageArrived(topic: String?, message: MqttMessage?) {
                 if (topic == alertTopic && message != null) {
                     onAlertReceived?.invoke(String(message.payload, Charsets.UTF_8))
+                } else if (topic == timeTopic && message != null) {
+                    onTimeSyncReceived?.invoke(String(message.payload, Charsets.UTF_8))
                 }
             }
 
@@ -157,7 +161,7 @@ class MqttManager(
 
     private suspend fun initializeSession() {
         try {
-            client.subscribe(alertTopic, QOS)
+            client.subscribe(arrayOf(alertTopic, timeTopic), intArrayOf(QOS, QOS))
             publishStatus(true)
             flushOfflineQueue()
         } catch (e: Exception) {

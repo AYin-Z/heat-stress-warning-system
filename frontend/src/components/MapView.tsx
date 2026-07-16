@@ -16,6 +16,7 @@ const RISK_COLORS: Record<string, string> = {
   [RiskLevel.Normal]: '#52c41a',
   [RiskLevel.Warning]: '#fa8c16',
   [RiskLevel.HighRisk]: '#ff4d4f',
+  [RiskLevel.Unavailable]: '#5c7c8a',
   [RiskLevel.Offline]: '#8c8c8c',
 };
 
@@ -120,9 +121,10 @@ export default function MapView() {
     Object.values(state.devices).forEach((device) => {
       if (device.latitude == null || device.longitude == null) return;
       const deviceId = device.deviceId;
-      const riskLevel = device.riskLevel || RiskLevel.Normal;
+      const riskLevel = device.riskLevel || RiskLevel.Unavailable;
       const color = RISK_COLORS[riskLevel];
       const name = state.officers[deviceId]?.name || deviceId;
+      const safeName = escapeHtml(name);
       const shape = getShape(deviceId);
 
       // 标记内容：风险 icon + 姓名
@@ -146,15 +148,18 @@ export default function MapView() {
             border-radius: 2px;
             white-space: nowrap;
             border: 1px solid ${color}40;
-          ">${name}</div>
+          ">${safeName}</div>
         </div>
       `;
 
       const position = [device.longitude, device.latitude];
+      const markerData = { device, name: safeName, color };
 
       if (currentMarkers.has(deviceId)) {
-        // 更新位置
-        currentMarkers.get(deviceId)?.setPosition(position);
+        const marker = currentMarkers.get(deviceId);
+        marker?.setPosition(position);
+        marker?.setContent(content);
+        marker?.setExtData(markerData);
       } else {
         // 创建新标记
         const marker = new (window as any).AMap.Marker({
@@ -162,6 +167,7 @@ export default function MapView() {
           content,
           offset: new (window as any).AMap.Pixel(0, -20),
           zIndex: 100,
+          extData: markerData,
         });
 
         // 点击事件 → 打开详情
@@ -171,6 +177,7 @@ export default function MapView() {
 
         // hover 显示简要信息
         marker.on('mouseover', () => {
+          const latest = marker.getExtData();
           marker.setLabel({
             content: `<div style="
               background: rgba(13,27,42,0.95);
@@ -178,11 +185,11 @@ export default function MapView() {
               padding: 4px 8px;
               border-radius: 4px;
               font-size: 12px;
-              border: 1px solid ${color}60;
+              border: 1px solid ${latest.color}60;
             ">
-              <b>${name}</b><br/>
-              心率 ${device.heartRate ?? '--'} bpm | 血氧 ${device.spo2 ?? '--'}%<br/>
-              核心温度 ${device.coreTemp?.toFixed(1) || '--'}℃
+              <b>${latest.name}</b><br/>
+              心率 ${latest.device.heartRate ?? '--'} bpm | 血氧 ${latest.device.spo2 ?? '--'}%<br/>
+              核心温度 ${latest.device.coreTemp?.toFixed(1) || '--'}℃
             </div>`,
             offset: new (window as any).AMap.Pixel(0, -60),
           });
@@ -246,4 +253,14 @@ export default function MapView() {
       }}
     />
   );
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] || character);
 }

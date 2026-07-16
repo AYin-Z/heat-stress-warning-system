@@ -8,7 +8,7 @@ import { WifiOutlined, DisconnectOutlined, WarningOutlined } from '@ant-design/i
 const { Text } = Typography;
 
 export default function TopStatusBar() {
-  const { state } = useAppState();
+  const { state, getRiskStats } = useAppState();
   const online = state.onlineDevices.size;
   const knownDevices = new Set([
     ...Object.keys(state.officers),
@@ -16,6 +16,7 @@ export default function TopStatusBar() {
     ...state.onlineDevices,
   ]);
   const offline = Math.max(0, knownDevices.size - online);
+  const unavailable = getRiskStats().unavailable;
 
   const totalAlerts = state.alertRecords.length;
 
@@ -47,6 +48,7 @@ export default function TopStatusBar() {
             在线 {online}
           </Text>
         </Space>
+        {unavailable > 0 && <Tag color="default">数据不可用 {unavailable}</Tag>}
         <Space>
           <Badge status="default" color="#8c8c8c" />
           <Text style={{ color: '#8c8c8c', fontWeight: 500 }}>

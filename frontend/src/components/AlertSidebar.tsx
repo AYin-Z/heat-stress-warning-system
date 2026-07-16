@@ -1,7 +1,6 @@
 /**
  * 右侧预警历史侧边栏 — 可折叠
  */
-import { useState } from 'react';
 import { Tag, Typography, Button, Tooltip, Popconfirm, Badge, Space } from 'antd';
 import {
   DoubleRightOutlined,
@@ -16,15 +15,14 @@ import dayjs from 'dayjs';
 
 const { Text } = Typography;
 
-const SIDEBAR_WIDTH = 320;
-const COLLAPSED_WIDTH = 40;
+export const SIDEBAR_WIDTH = 320;
+export const COLLAPSED_WIDTH = 40;
 
 export default function AlertSidebar() {
   const { state, dispatch } = useAppState();
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = state.sidebarCollapsed;
 
   const toggle = () => {
-    setCollapsed(!collapsed);
     dispatch({ type: 'TOGGLE_SIDEBAR' });
   };
 

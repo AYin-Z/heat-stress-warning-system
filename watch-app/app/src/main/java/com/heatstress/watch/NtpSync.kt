@@ -13,7 +13,9 @@ object NtpSync {
     suspend fun synchronizeClock(): SyncResult = withContext(Dispatchers.IO) {
         val ntpTime = getNtpTime() ?: return@withContext SyncResult(false, null, "NTP unavailable")
         val drift = ntpTime - System.currentTimeMillis()
-        if (abs(drift) <= SET_THRESHOLD_MS) return@withContext SyncResult(true, drift, "Clock current")
+        if (abs(drift) <= SET_THRESHOLD_MS) {
+            return@withContext SyncResult(true, drift, "Clock current", corrected = false)
+        }
 
         val updated = try {
             SystemClock.setCurrentTimeMillis(ntpTime)
@@ -21,8 +23,38 @@ object NtpSync {
             Log.e(TAG, "SET_TIME denied", e)
             false
         }
-        SyncResult(updated, drift, if (updated) "Clock corrected" else "Clock correction denied")
+        SyncResult(
+            updated,
+            drift,
+            if (updated) "Clock corrected by NTP" else "Clock correction denied",
+            corrected = updated
+        )
     }
+
+    fun applyServerTime(timestampMs: Long): SyncResult {
+        if (!isPlausibleTimestamp(timestampMs)) {
+            return SyncResult(false, null, "Server time rejected", corrected = false)
+        }
+        val drift = timestampMs - System.currentTimeMillis()
+        if (abs(drift) <= SET_THRESHOLD_MS) {
+            return SyncResult(true, drift, "Clock current", corrected = false)
+        }
+        val updated = try {
+            SystemClock.setCurrentTimeMillis(timestampMs)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SET_TIME denied", e)
+            false
+        }
+        return SyncResult(
+            updated,
+            drift,
+            if (updated) "Clock corrected by MQTT" else "Clock correction denied",
+            corrected = updated
+        )
+    }
+
+    internal fun isPlausibleTimestamp(timestampMs: Long): Boolean =
+        timestampMs in MIN_TRUSTED_TIME_MS..MAX_TRUSTED_TIME_MS
 
     private fun getNtpTime(): Long? {
         var socket: DatagramSocket? = null
@@ -57,7 +89,12 @@ object NtpSync {
         return (seconds - EPOCH_DIFF_SECONDS) * 1_000L + (fraction * 1_000L) / 0x100000000L
     }
 
-    data class SyncResult(val success: Boolean, val driftMs: Long?, val message: String)
+    data class SyncResult(
+        val success: Boolean,
+        val driftMs: Long?,
+        val message: String,
+        val corrected: Boolean = false
+    )
 
     private const val TAG = "NtpSync"
     private const val NTP_HOST = "ntp.aliyun.com"
@@ -67,4 +104,6 @@ object NtpSync {
     private const val TRANSMIT_OFFSET = 40
     private const val EPOCH_DIFF_SECONDS = 2_208_988_800L
     private const val SET_THRESHOLD_MS = 30_000L
+    private const val MIN_TRUSTED_TIME_MS = 1_704_067_200_000L // 2024-01-01 UTC
+    private const val MAX_TRUSTED_TIME_MS = 4_102_444_800_000L // 2100-01-01 UTC
 }

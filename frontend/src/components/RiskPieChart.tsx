@@ -1,6 +1,6 @@
 /**
  * 风险概况饼图 — 右上角
- * 绿(正常) / 橙(普通预警) / 红(高风险) / 灰(离线)
+ * 绿(正常) / 橙(普通预警) / 红(高风险) / 蓝灰(数据不可用) / 灰(离线)
  */
 import * as echarts from 'echarts/core';
 import { PieChart } from 'echarts/charts';
@@ -8,11 +8,12 @@ import { TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import EChartsReactCore from 'echarts-for-react/esm/core';
 import { useAppState } from '../store';
+import { COLLAPSED_WIDTH, SIDEBAR_WIDTH } from './AlertSidebar';
 
 echarts.use([PieChart, TooltipComponent, CanvasRenderer]);
 
 export default function RiskPieChart() {
-  const { getRiskStats } = useAppState();
+  const { getRiskStats, state } = useAppState();
   const stats = getRiskStats();
 
   const option = {
@@ -60,6 +61,11 @@ export default function RiskPieChart() {
             itemStyle: { color: '#ff4d4f' },
           },
           {
+            value: stats.unavailable,
+            name: '数据不可用',
+            itemStyle: { color: '#5c7c8a' },
+          },
+          {
             value: stats.offline,
             name: '离线',
             itemStyle: { color: '#8c8c8c' },
@@ -73,11 +79,12 @@ export default function RiskPieChart() {
     <div
       style={{
         position: 'absolute',
-        top: 56,
-        right: 8,
+        top: 8,
+        right: (state.sidebarCollapsed ? COLLAPSED_WIDTH : SIDEBAR_WIDTH) + 8,
         width: 200,
         height: 200,
         zIndex: 50,
+        transition: 'right 0.3s ease',
       }}
     >
       <EChartsReactCore

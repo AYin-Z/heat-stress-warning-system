@@ -24,17 +24,20 @@ export default function OfficerDetail() {
     [RiskLevel.Normal]: '#52c41a',
     [RiskLevel.Warning]: '#fa8c16',
     [RiskLevel.HighRisk]: '#ff4d4f',
+    [RiskLevel.Unavailable]: '#5c7c8a',
     [RiskLevel.Offline]: '#8c8c8c',
   };
 
   const riskLabels: Record<string, string> = {
     [RiskLevel.Normal]: '正常',
-    [RiskLevel.Warning]: '⚠ 普通预警',
-    [RiskLevel.HighRisk]: '🚨 高风险预警',
+    [RiskLevel.Warning]: '普通预警',
+    [RiskLevel.HighRisk]: '高风险预警',
+    [RiskLevel.Unavailable]: device.worn === false ? '未佩戴' : '数据不可用',
     [RiskLevel.Offline]: '离线',
   };
 
-  const riskColor = riskColors[device.riskLevel || RiskLevel.Normal];
+  const currentRisk = device.riskLevel || RiskLevel.Unavailable;
+  const riskColor = riskColors[currentRisk];
 
   return (
     <Modal
@@ -54,10 +57,12 @@ export default function OfficerDetail() {
                 ? 'error'
                 : device.riskLevel === RiskLevel.Warning
                   ? 'warning'
-                  : 'success'
+                  : device.riskLevel === RiskLevel.Normal
+                    ? 'success'
+                    : 'default'
             }
           >
-            {riskLabels[device.riskLevel || RiskLevel.Normal]}
+            {riskLabels[currentRisk]}
           </Tag>
         </Space>
       }
@@ -93,14 +98,14 @@ export default function OfficerDetail() {
           value={device.heartRate ?? '--'}
           unit="bpm"
           icon={<HeartOutlined />}
-          color={device.heartRate != null && device.heartRate > 120 ? '#ff4d4f' : '#52c41a'}
+          color={device.heartRate == null ? '#8c8c8c' : device.heartRate > 120 ? '#ff4d4f' : '#52c41a'}
         />
         <DataCard
           label="血氧"
           value={device.spo2 ?? '--'}
           unit="%"
           icon={<DashboardOutlined />}
-          color={device.spo2 != null && device.spo2 < 95 ? '#fa8c16' : '#52c41a'}
+          color={device.spo2 == null ? '#8c8c8c' : device.spo2 < 95 ? '#fa8c16' : '#52c41a'}
         />
         <DataCard
           label="血压"

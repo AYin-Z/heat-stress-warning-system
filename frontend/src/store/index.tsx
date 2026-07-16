@@ -44,10 +44,16 @@ type Action =
 // Helper
 // ============================================================
 
-function getRiskLevel(coreTemp?: number): RiskLevel {
-  if (coreTemp == null) return RL.Normal;
-  if (coreTemp >= TEMP_THRESHOLDS.WARNING_MAX) return RL.HighRisk;
-  if (coreTemp >= TEMP_THRESHOLDS.NORMAL_MAX) return RL.Warning;
+function getRiskLevel(data: VitalData): RiskLevel {
+  if (
+    data.worn === false ||
+    data.dataQuality === 'not_worn' ||
+    data.dataQuality === 'no_vitals' ||
+    data.coreTemp == null
+  ) return RL.Unavailable;
+  if (data.riskLevel && data.riskLevel !== RL.Normal) return data.riskLevel;
+  if (data.coreTemp >= TEMP_THRESHOLDS.WARNING_MAX) return RL.HighRisk;
+  if (data.coreTemp >= TEMP_THRESHOLDS.NORMAL_MAX) return RL.Warning;
   return RL.Normal;
 }
 
@@ -70,7 +76,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'VITAL_DATA': {
       const data = action.payload;
       // MQTT vital 是完整快照。直接替换可确保未佩戴后的缺失字段清除旧值。
-      const riskLevel = data.riskLevel || getRiskLevel(data.coreTemp);
+      const riskLevel = getRiskLevel(data);
       return {
         ...state,
         devices: {
@@ -140,7 +146,13 @@ interface AppContextValue {
   dispatch: React.Dispatch<Action>;
   // Derived data helpers
   getMarkers: () => MapMarker[];
-  getRiskStats: () => { normal: number; warning: number; highRisk: number; offline: number };
+  getRiskStats: () => {
+    normal: number;
+    warning: number;
+    highRisk: number;
+    unavailable: number;
+    offline: number;
+  };
   getOfficerName: (deviceId: string) => string;
 }
 
@@ -156,13 +168,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deviceId: d.deviceId,
       position: [d.longitude!, d.latitude!],
       name: state.officers[d.deviceId]?.name || d.deviceId,
-      riskLevel: d.riskLevel || RL.Normal,
+      riskLevel: d.riskLevel || RL.Unavailable,
       vitalData: d,
     }));
   }, [state.devices, state.officers]);
 
   const getRiskStats = useCallback(() => {
-    let normal = 0, warning = 0, highRisk = 0, offline = 0;
+    let normal = 0, warning = 0, highRisk = 0, unavailable = 0, offline = 0;
     const allDevices = new Set([
       ...Object.keys(state.devices),
       ...Object.keys(state.officers),
@@ -179,11 +191,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case RL.Normal: normal++; break;
         case RL.Warning: warning++; break;
         case RL.HighRisk: highRisk++; break;
-        default: normal++;
+        default: unavailable++;
       }
     });
 
-    return { normal, warning, highRisk, offline };
+    return { normal, warning, highRisk, unavailable, offline };
   }, [state.devices, state.onlineDevices, state.officers]);
 
   const getOfficerName = useCallback(

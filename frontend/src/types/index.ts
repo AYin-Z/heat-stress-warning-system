@@ -7,6 +7,7 @@ export const RiskLevel = {
   Normal: 'normal',
   Warning: 'warning',
   HighRisk: 'high_risk',
+  Unavailable: 'unavailable',
   Offline: 'offline',
 } as const;
 export type RiskLevel = (typeof RiskLevel)[keyof typeof RiskLevel];

@@ -105,6 +105,9 @@ class SensorService : Service() {
         mqttManager = MqttManager(resolveDeviceId(), offlineQueue).apply {
             onConnectionChanged = { broadcastState() }
             onAlertReceived = { payload -> handleAlert(payload) }
+            onTimeSyncReceived = { payload ->
+                serviceScope.launch { handleTimeSync(payload) }
+            }
         }
 
         createNotificationChannel()
@@ -406,6 +409,25 @@ class SensorService : Service() {
             updateNotification("$type：$advice")
         } catch (e: Exception) {
             Log.w(TAG, "Invalid alert payload: ${e.message}")
+        }
+    }
+
+    private fun handleTimeSync(payload: String) {
+        try {
+            val json = JsonParser.parseString(payload).asJsonObject
+            if (json.get("source")?.asString != "heatstress-bridge") {
+                Log.w(TAG, "Ignoring time sync from unknown source")
+                return
+            }
+            val timestamp = json.get("timestamp")?.asLong
+                ?: throw IllegalArgumentException("timestamp missing")
+            val result = NtpSync.applyServerTime(timestamp)
+            Log.i(TAG, "MQTT time sync: ${result.message}, drift=${result.driftMs}")
+            if (result.corrected) {
+                mqttManager.publishStatus(true, latitude, longitude, batteryLevel)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Invalid time sync payload: ${e.message}")
         }
     }
 

@@ -16,12 +16,14 @@ class BridgeContractTest(unittest.TestCase):
         self.original_upload = bridge.api.upload
         self.original_acknowledge = bridge.api.acknowledge
         self.original_publish_alert = bridge.publish_alert
+        self.original_mqtt_publish = bridge.mqtt_client.publish
         bridge.api.upload = self.capture_upload
 
     def tearDown(self):
         bridge.api.upload = self.original_upload
         bridge.api.acknowledge = self.original_acknowledge
         bridge.publish_alert = self.original_publish_alert
+        bridge.mqtt_client.publish = self.original_mqtt_publish
 
     def capture_upload(self, device_id, **values):
         self.calls.append((device_id, values))
@@ -97,6 +99,34 @@ class BridgeContractTest(unittest.TestCase):
 
         self.assertEqual([42], publish_calls)
         self.assertEqual([42, 42], acknowledge_calls)
+
+    def test_time_sync_uses_qos_one_and_current_server_time(self):
+        calls = []
+
+        class PublishResult:
+            rc = bridge.mqtt.MQTT_ERR_SUCCESS
+
+            def wait_for_publish(self, timeout):
+                self.timeout = timeout
+
+            def is_published(self):
+                return True
+
+        bridge.mqtt_client.publish = lambda topic, payload, qos, retain: (
+            calls.append((topic, payload, qos, retain)) or PublishResult()
+        )
+        before = int(time.time() * 1000)
+
+        self.assertTrue(bridge.publish_time_sync("UNIT-A80"))
+
+        after = int(time.time() * 1000)
+        topic, payload_text, qos, retain = calls[0]
+        payload = __import__("json").loads(payload_text)
+        self.assertEqual("watch/UNIT-A80/time", topic)
+        self.assertEqual("heatstress-bridge", payload["source"])
+        self.assertTrue(before <= payload["timestamp"] <= after)
+        self.assertEqual(1, qos)
+        self.assertFalse(retain)
 
 
 if __name__ == "__main__":
