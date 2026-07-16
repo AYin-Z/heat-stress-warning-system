@@ -342,7 +342,6 @@ def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
         and blood_oxygen is not None
         and systolic is not None
         and diastolic is not None
-        and core_temperature is not None
     )
     if not complete_vitals:
         log.debug("[%s] Incomplete vital frame ignored (quality=%s)", mqtt_id, payload.get("dataQuality"))

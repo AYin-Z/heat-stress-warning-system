@@ -52,13 +52,11 @@ class SensorService : Service() {
     private lateinit var offlineQueue: OfflineQueue
     private lateinit var mqttManager: MqttManager
     private var heartSensor: Sensor? = null
-    private val coreEstimator = CoreTemperatureEstimator()
 
     @Volatile private var heartRate: Int? = null
     @Volatile private var spo2: Int? = null
     @Volatile private var systolic: Int? = null
     @Volatile private var diastolic: Int? = null
-    @Volatile private var coreTemperature: Double? = null
     @Volatile private var steps: Int? = null
     @Volatile private var worn: Boolean? = null
     @Volatile private var batteryLevel = 0
@@ -174,7 +172,6 @@ class SensorService : Service() {
                 clearVitalsForNoWear()
             } else {
                 heartFrame.heartRate?.let { heartRate = it }
-                heartFrame.heartRate?.let { coreTemperature = coreEstimator.update(it) }
                 heartFrame.systolic?.let { systolic = it }
                 heartFrame.diastolic?.let { diastolic = it }
                 if (heartFrame.heartRate != null || heartFrame.systolic != null) {
@@ -205,7 +202,7 @@ class SensorService : Service() {
             TAG,
             "Report connected=${mqttManager.isConnected()} worn=${report.worn} " +
                 "hr=${report.heartRate} spo2=${report.spo2} bp=${report.bloodPressure} " +
-                "core=${report.coreTemp} steps=${report.steps} gps=${report.latitude},${report.longitude} " +
+                "steps=${report.steps} gps=${report.latitude},${report.longitude} " +
                 "quality=${report.dataQuality} queued=${offlineQueue.size()}"
         )
 
@@ -340,8 +337,8 @@ class SensorService : Service() {
         val bp = if (systolic != null && diastolic != null) "$systolic/$diastolic" else null
         val quality = when {
             worn == false -> "not_worn"
-            heartRate != null && spo2 != null && bp != null && coreTemperature != null -> "complete"
-            heartRate != null || spo2 != null || bp != null || coreTemperature != null -> "partial"
+            heartRate != null && spo2 != null && bp != null -> "complete"
+            heartRate != null || spo2 != null || bp != null -> "partial"
             else -> "no_vitals"
         }
         return VitalReport(
@@ -353,8 +350,6 @@ class SensorService : Service() {
             heartRate = heartRate,
             spo2 = spo2,
             bloodPressure = bp,
-            coreTemp = coreTemperature,
-            coreTempSource = coreTemperature?.let { CoreTemperatureEstimator.SOURCE },
             steps = steps,
             batteryLevel = batteryLevel,
             worn = worn,
@@ -367,8 +362,6 @@ class SensorService : Service() {
         spo2 = null
         systolic = null
         diastolic = null
-        coreTemperature = null
-        coreEstimator.reset()
         lastHeartSampleMs = 0L
         lastSpo2SampleMs = 0L
     }
@@ -379,7 +372,6 @@ class SensorService : Service() {
             heartRate = null
             systolic = null
             diastolic = null
-            coreTemperature = null
         }
         if (lastSpo2SampleMs > 0L && now - lastSpo2SampleMs > VITAL_STALE_MS) spo2 = null
         if (lastLocationElapsedMs > 0L && now - lastLocationElapsedMs > GPS_STALE_MS) gpsAccuracy = null
@@ -441,7 +433,6 @@ class SensorService : Service() {
         spo2?.let { intent.putExtra(EXTRA_SPO2, it) }
         systolic?.let { intent.putExtra(EXTRA_BP_SYS, it) }
         diastolic?.let { intent.putExtra(EXTRA_BP_DIA, it) }
-        coreTemperature?.let { intent.putExtra(EXTRA_CORE_TEMP, it) }
         steps?.let { intent.putExtra(EXTRA_STEPS, it) }
         gpsAccuracy?.let { intent.putExtra(EXTRA_GPS_ACCURACY, it) }
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)

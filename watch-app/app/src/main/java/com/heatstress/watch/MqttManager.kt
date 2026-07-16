@@ -231,8 +231,6 @@ data class VitalReport(
     val heartRate: Int? = null,
     val spo2: Int? = null,
     val bloodPressure: String? = null,
-    val coreTemp: Double? = null,
-    val coreTempSource: String? = null,
     val steps: Int? = null,
     val batteryLevel: Int,
     val worn: Boolean? = null,
