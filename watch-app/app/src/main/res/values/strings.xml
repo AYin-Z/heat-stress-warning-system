@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">热应激预警</string>
     <string name="app_desc">A80 热应激监测手表端</string>
+    <string name="monitor_content_description">热应激生理监测</string>
+    <string name="monitor_starting">正在启动监测</string>
 </resources>

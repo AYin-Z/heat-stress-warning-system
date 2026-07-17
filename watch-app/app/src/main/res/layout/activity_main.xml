@@ -1,151 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#05080C">
+    android:layout_height="match_parent">
 
-    <LinearLayout
-        android:id="@+id/statusBar"
-        android:layout_width="match_parent"
-        android:layout_height="36dp"
-        android:layout_alignParentTop="true"
-        android:background="#14202B"
-        android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
-
-        <TextView
-            android:id="@+id/tvMqttStatus"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="中继连接中"
-            android:textColor="#F4B942"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/tvBattery"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="电量 --%"
-            android:textColor="#B8C4CE"
-            android:textSize="11sp" />
-    </LinearLayout>
-
-    <LinearLayout
+    <FrameLayout
         android:id="@+id/dataArea"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/alertArea"
-        android:layout_below="@id/statusBar"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp">
+        android:layout_above="@id/alertArea">
 
-        <TextView
-            android:id="@+id/tvHeartRate"
-            android:layout_width="wrap_content"
-            android:layout_height="76dp"
-            android:fontFamily="sans-serif-light"
-            android:gravity="center"
-            android:text="--"
-            android:textColor="#43D17B"
-            android:textSize="64sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="心率 bpm"
-            android:textColor="#91A1AE"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/tvCoreTemp"
-            android:layout_width="wrap_content"
-            android:layout_height="24dp"
-            android:gravity="center"
-            android:text="核心估算 --.-℃"
-            android:textColor="#F4B942"
-            android:textSize="13sp" />
-
-        <LinearLayout
+        <com.heatstress.watch.VitalsPanelView
+            android:id="@+id/vitalsPanel"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="8dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tvSpo2"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="血氧\n--%"
-                android:textColor="#55B8FF"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/tvBP"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="血压\n--/--"
-                android:textColor="#F49A72"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/tvSteps"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="步数\n--"
-                android:textColor="#C2A5FF"
-                android:textSize="13sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tvWear"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="佩戴检测中"
-                android:textColor="#B8C4CE"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/tvGps"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="GPS 搜索中"
-                android:textColor="#B8C4CE"
-                android:textSize="11sp" />
-        </LinearLayout>
-    </LinearLayout>
+            android:layout_height="match_parent"
+            android:contentDescription="@string/monitor_content_description" />
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/alertArea"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:layout_alignParentBottom="true"
-        android:background="#14202B"
+        android:background="#101116"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp">
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp">
 
         <TextView
             android:id="@+id/tvAlert"
@@ -155,8 +35,9 @@
             android:gravity="center"
             android:maxLines="1"
             android:text=""
-            android:textColor="#FF6B6B"
-            android:textSize="11sp"
+            android:textColor="#FF1744"
+            android:textSize="13sp"
+            android:textStyle="bold"
             android:visibility="gone" />
 
         <TextView
@@ -166,8 +47,8 @@
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="2"
-            android:text="正在启动监测"
-            android:textColor="#43D17B"
-            android:textSize="11sp" />
+            android:text="@string/monitor_starting"
+            android:textColor="#00E676"
+            android:textSize="13sp" />
     </LinearLayout>
 </RelativeLayout>
