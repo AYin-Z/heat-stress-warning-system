@@ -25,6 +25,16 @@
 | `POST` | `/api/watch/heartbeat/` | 心跳保活 | 每 60s |
 | `GET`  | `/api/watch/alerts/` | 拉取待下发预警 | 每 15s 轮询 |
 | `POST` | `/api/watch/alerts/{id}/ack/` | 确认预警已送达 | 每次预警下发后 |
+| `POST` | `/v1/core-temperature/estimate` | 核心温度推算（独立模型服务） | 每凑齐 20 个心率样本 |
+
+---
+
+## API 来源说明
+
+| API | 部署位置 | 负责人 |
+|---|---|---|
+| `/api/watch/*` | `101.201.29.99:8001` | 后端同学（待上线） |
+| `/v1/core-temperature/estimate` | `20.205.12.160:8001` | 模型同学（已就绪 ✅） |
 
 ---
 
@@ -185,6 +195,64 @@ Content-Type: application/json
   "ok": true
 }
 ```
+
+---
+
+## 6. 核心温度推算（独立模型服务）
+
+```
+POST /v1/core-temperature/estimate
+Content-Type: application/json
+```
+
+### 请求体
+
+```jsonc
+{
+  "device_id": "A80-PROD-001",
+  "samples": [
+    {"heart_rate": 82,  "timestamp": "2026-07-17T10:00:00+08:00"},
+    {"heart_rate": 83,  "timestamp": "2026-07-17T10:01:00+08:00"},
+    // ... 共 20 条
+  ]
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `device_id` | 设备标识 |
+| `samples[].heart_rate` | 心率 bpm（Int） |
+| `samples[].timestamp` | ISO 8601 带时区 |
+
+### 成功响应（200）
+
+```jsonc
+{
+  "ok": true,
+  "thermal": {
+    "status": "ready",
+    "current_core_temperature": 37.2,      // ★ 推算结果
+    "current_source": "informer_model_1",
+    "confidence": "medium",
+    "samples_collected": 20,
+    "samples_required": 20,
+    "forecast": null,
+    "max_forecast_temperature": null,
+    "forecast_source": null,
+    "model_versions": {
+      "estimator": "core-estimator-kalman-hr-only-1.0.0"
+    },
+    "warnings": []
+  }
+}
+```
+
+### Bridge 集成方式
+
+- Bridge 为每个手表缓冲心率样本（最近 20 条）。
+- 凑齐 20 条后调用此 API，结果写入 `core_temperature`，夹带到下次 `upload` 请求中发送给后端。
+- API 不可达时静默降级：使用上一次缓存结果，不影响数据上报。
+- 配置环境变量：`BRIDGE_CORE_TEMP_API_URL=http://20.205.12.160:8001/v1/core-temperature/estimate`
 
 ---
 

@@ -36,6 +36,8 @@ ALERT_POLL_INTERVAL = int(os.environ.get("BRIDGE_ALERT_POLL_INTERVAL", "15"))
 WORKER_COUNT = int(os.environ.get("BRIDGE_WORKER_COUNT", "4"))
 QUEUE_SIZE = int(os.environ.get("BRIDGE_QUEUE_SIZE", "2000"))
 MQTT_PUBLISH_TIMEOUT = float(os.environ.get("BRIDGE_MQTT_PUBLISH_TIMEOUT", "6"))
+CORE_TEMP_API_URL = os.environ.get("BRIDGE_CORE_TEMP_API_URL", "")
+CORE_TEMP_MIN_SAMPLES = int(os.environ.get("BRIDGE_CORE_TEMP_MIN_SAMPLES", "20"))
 
 logging.basicConfig(
     level=getattr(logging, os.environ.get("BRIDGE_LOG_LEVEL", "INFO")),
@@ -148,6 +150,71 @@ class DeviceRegistry:
 
 registry = DeviceRegistry()
 registration_lock = threading.Lock()
+
+
+class CoreTempEstimator:
+    """缓冲手表心率样本，定期调用核心温度推算 API。"""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._samples: dict[str, list[dict[str, Any]]] = {}   # mqtt_id → samples
+        self._latest: dict[str, Optional[float]] = {}          # mqtt_id → latest core temp
+
+    def feed(self, mqtt_id: str, heart_rate: Optional[int], timestamp_ms: int) -> Optional[float]:
+        """喂入一条心率样本。返回推算结果（可能为 None）。"""
+        if not CORE_TEMP_API_URL or heart_rate is None:
+            return self._latest.get(mqtt_id)
+        with self._lock:
+            buf = self._samples.setdefault(mqtt_id, [])
+            buf.append({
+                "heart_rate": heart_rate,
+                "timestamp": datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                .astimezone().isoformat(timespec="seconds"),
+            })
+            if len(buf) < CORE_TEMP_MIN_SAMPLES:
+                return self._latest.get(mqtt_id)
+            # 凑齐样本，调用 API
+            payload = {"device_id": mqtt_id, "samples": buf[:]}
+            self._samples[mqtt_id] = []  # 清空缓冲，开始下一轮
+        return self._estimate(mqtt_id, payload)
+
+    def _estimate(self, mqtt_id: str, payload: dict[str, Any]) -> Optional[float]:
+        try:
+            resp = requests.post(
+                CORE_TEMP_API_URL,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=API_TIMEOUT,
+            )
+            if resp.status_code != 200:
+                log.warning("[%s] Core-temp API returned HTTP %s: %s", mqtt_id, resp.status_code, resp.text[:200])
+                return self._latest.get(mqtt_id)
+            data = resp.json()
+            thermal = data.get("thermal", {}) if isinstance(data, dict) else {}
+            temp = thermal.get("current_core_temperature")
+            if not isinstance(temp, (int, float)):
+                log.warning("[%s] Core-temp API missing current_core_temperature", mqtt_id)
+                return self._latest.get(mqtt_id)
+            log.info("[%s] Core-temp estimated: %.2f °C (source=%s, confidence=%s)",
+                     mqtt_id, temp,
+                     thermal.get("current_source", "unknown"),
+                     thermal.get("confidence", "unknown"))
+            with self._lock:
+                self._latest[mqtt_id] = float(temp)
+            return float(temp)
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            log.warning("[%s] Core-temp API unreachable: %s", mqtt_id, exc)
+            return self._latest.get(mqtt_id)
+        except Exception:
+            log.exception("[%s] Core-temp estimate failed", mqtt_id)
+            return self._latest.get(mqtt_id)
+
+    def get_latest(self, mqtt_id: str) -> Optional[float]:
+        with self._lock:
+            return self._latest.get(mqtt_id)
+
+
+core_temp = CoreTempEstimator()
 
 
 class ApiClient:
@@ -343,6 +410,14 @@ def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
     step_frequency = registry.step_frequency(mqtt_id, steps, taken_at)
     core_temperature = optional_float(payload, "coreTemp", 30, 45)
     latitude, longitude = valid_coordinates(payload)
+
+    # 核心温度：优先用推算 API，手表直传为 fallback
+    estimated_temp = core_temp.feed(
+        mqtt_id, heart_rate,
+        int(payload.get("timestamp", taken_at * 1000)),
+    )
+    if estimated_temp is not None:
+        core_temperature = estimated_temp
 
     has_any_vital = (
         heart_rate is not None

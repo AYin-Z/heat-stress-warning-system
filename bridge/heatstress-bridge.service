@@ -15,6 +15,7 @@ RestartSec=10
 Environment=BRIDGE_MQTT_BROKER=localhost
 Environment=BRIDGE_MQTT_PORT=1883
 Environment=BRIDGE_API_BASE=http://101.201.29.99:8001
+Environment=BRIDGE_CORE_TEMP_API_URL=http://20.205.12.160:8001/v1/core-temperature/estimate
 Environment=BRIDGE_LOG_LEVEL=INFO
 Environment=BRIDGE_ALERT_POLL_INTERVAL=15
 Environment=BRIDGE_API_TIMEOUT=6
