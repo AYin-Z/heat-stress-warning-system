@@ -190,15 +190,17 @@ class CoreTempEstimator:
                 log.warning("[%s] Core-temp API returned HTTP %s: %s", mqtt_id, resp.status_code, resp.text[:200])
                 return self._latest.get(mqtt_id)
             data = resp.json()
-            thermal = data.get("thermal", {}) if isinstance(data, dict) else {}
-            temp = thermal.get("current_core_temperature")
-            if not isinstance(temp, (int, float)):
-                log.warning("[%s] Core-temp API missing current_core_temperature", mqtt_id)
+            if not isinstance(data, dict) or not data.get("ok"):
+                log.warning("[%s] Core-temp API returned ok=false or invalid: %s", mqtt_id, resp.text[:200])
                 return self._latest.get(mqtt_id)
-            log.info("[%s] Core-temp estimated: %.2f °C (source=%s, confidence=%s)",
+            temp = data.get("core_temperature")
+            if not isinstance(temp, (int, float)):
+                log.warning("[%s] Core-temp API missing core_temperature field", mqtt_id)
+                return self._latest.get(mqtt_id)
+            log.info("[%s] Core-temp estimated: %.2f °C (source=%s, model=%s)",
                      mqtt_id, temp,
-                     thermal.get("current_source", "unknown"),
-                     thermal.get("confidence", "unknown"))
+                     data.get("source", "unknown"),
+                     data.get("model_version", "unknown"))
             with self._lock:
                 self._latest[mqtt_id] = float(temp)
             return float(temp)

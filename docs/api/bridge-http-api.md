@@ -229,23 +229,23 @@ Content-Type: application/json
 ```jsonc
 {
   "ok": true,
-  "thermal": {
-    "status": "ready",
-    "current_core_temperature": 37.2,      // ★ 推算结果
-    "current_source": "informer_model_1",
-    "confidence": "medium",
-    "samples_collected": 20,
-    "samples_required": 20,
-    "forecast": null,
-    "max_forecast_temperature": null,
-    "forecast_source": null,
-    "model_versions": {
-      "estimator": "core-estimator-kalman-hr-only-1.0.0"
-    },
-    "warnings": []
-  }
+  "device_id": "WATCH-6B6D32BA",
+  "core_temperature": 37.456,          // ★ 直接取这个字段
+  "source": "informer_model_1",
+  "model_version": "core-estimator-kalman-hr-only-1.0.0",
+  "window_size": 20,
+  "timestamp": "2026-07-17T02:19:00Z"
 }
 ```
+
+### 错误响应
+
+| 状态码 | 含义 |
+|---|---|
+| 422 | 心率样本数量不是 20 或值超出 30~250 |
+| 503 | 模型权重未成功加载 |
+
+Bridge 只在 HTTP 200 且 `ok=true` 时提取 `core_temperature`，其他情况降级到缓存值。
 
 ### Bridge 集成方式
 
