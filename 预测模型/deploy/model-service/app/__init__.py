@@ -1,0 +1,2 @@
+"""Heat-stress model gateway."""
+

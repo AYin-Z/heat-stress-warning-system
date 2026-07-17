@@ -1,0 +1,16 @@
+services:
+  pret-test:
+    build:
+      context: ..
+      dockerfile: pret/Dockerfile
+    image: heat-stress-pret:latest
+    volumes:
+      - ../模型1/checkpoint:/project/模型1/checkpoint:ro
+      - ../模型2/checkpoint:/project/模型2/checkpoint:ro
+      - ../数据:/project/数据:ro
+      - ./output:/project/pret/output
+    command:
+      - --input
+      - /project/数据/环境舱-黄/高温实验_test/test/9_34重度警服12-13_3.csv
+      - --output
+      - /project/pret/output/predictions.csv

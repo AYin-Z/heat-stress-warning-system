@@ -1,0 +1,72 @@
+name: heatstress
+
+services:
+  model-gateway:
+    build:
+      context: ..
+      dockerfile: deploy/model-service.Dockerfile
+      args:
+        INSTALL_TORCH: ${INSTALL_TORCH:-true}
+    image: heatstress/model-gateway:1.0.0
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    ports:
+      - "${PUBLIC_PORT:-8001}:8001"
+    volumes:
+      - ../artifacts:/models:ro
+      - ../模型1/checkpoint/informer_checkpoints_Core/model_Kalman/informer_multiple_ftMNS_sl20_ll0_pl2_tgCore_dm512_nh8_el2_dl1_df2048_atprob_fc5_ebtimeF_dtTrue_mxTrue_exp:/checkpoints/core-estimator:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - heatstress
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - heatstress
+
+  tdgpt:
+    profiles: ["tdgpt"]
+    build:
+      context: ..
+      dockerfile: deploy/tdgpt.Dockerfile
+    image: heatstress/tdgpt:3.4.1.9-coretemp
+    restart: unless-stopped
+    expose:
+      - "6035"
+    volumes:
+      - ../artifacts/core-forecaster:/usr/local/taos/taosanode/model/core-temperature-forecast:ro
+      - tdgpt-logs:/var/log/taos/taosanode
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - heatstress
+
+networks:
+  heatstress:
+
+volumes:
+  redis-data:
+  tdgpt-logs:
