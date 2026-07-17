@@ -1,37 +1,49 @@
-# 模型端 — 核心温度推算
+# 模型端 — 核心温度推算与预测
 
-## 状态：待实现
+## 目录结构
 
-当前手表不采集核心温度（coreTemp），也不在 MQTT 生命体征帧中包含此字段。
-核心温度由后端 AI/统计算法根据环境温湿度、个体参数和实时生理数据推算。
-
-## 集成方式
-
-后端模型通过 Bridge 上传接口（`POST /api/watch/upload/`）的响应体中的 `alert` 字段
-向手表和大屏推送核心温度计算结果：
-
-```jsonc
-{
-  "ok": true,
-  "alert": {
-    "id": 42,
-    "risk_level": "high_risk",
-    "core_temperature": 39.5,     // ← 模型推算结果
-    "advice": "请立即停止活动"
-  }
-}
+```
+model/
+├── pret/                  ← 预训练代码（Kalman + Informer 训练管线）
+│   ├── kalman.py          卡尔曼滤波器实现
+│   ├── informer_runtime.py Informer 推理引擎
+│   ├── pipeline.py         训练/评估管线
+│   ├── simulate_watch.py   模拟手表数据生成
+│   └── test_pipeline.py    管线测试
+│
+├── artifacts/             ← 模型权重与配置
+│   ├── core-estimator/    核心温度估计器（Kalman + Informer）
+│   └── core-forecaster/   核心温度预测器（未来趋势）
+│
+├── deploy/                ← 部署配置
+│   ├── docker-compose.yml 容器编排
+│   ├── model-service/     API 服务（FastAPI）
+│   ├── tdgpt/             时序预测模块
+│   └── tests/             冒烟测试
+│
+├── watch-api.md           ← 提供给 Bridge 的 API 规格
+├── DEPLOYMENT.md          部署指南
+├── 使用说明.docx          使用文档
+└── README-predict.md      原始 README
 ```
 
-随后 Bridge 将其转为 MQTT 预警消息，大屏和手表均可消费。
+## API（已上线）
 
-## 技术要求
+```
+POST http://20.205.12.160:8001/v1/core-temperature/estimate
+```
 
-- 输入：心率、血氧、血压、步频、环境温湿度（待接入）、个体年龄/体重（待录入）
-- 输出：核心温度（℃）、风险等级、处置建议
-- 响应时间：< 5 秒（upload 接口是同步返回 alert 的）
+详见 [`watch-api.md`](watch-api.md) 或 [Bridge API 文档](../docs/api/bridge-http-api.md#6-核心温度推算独立模型服务)。
 
-## 评估中方案
+## 健康检查
 
-- Informer 时间序列模型（已在 README 提及）
-- ONNX 轻量推理
-- 规则引擎 + 统计学阈值（短期替代）
+```bash
+curl http://20.205.12.160:8001/readyz
+```
+
+## 更新部署
+
+```bash
+cd model
+docker compose -f deploy/docker-compose.yml up -d --build --force-recreate model-gateway
+```
