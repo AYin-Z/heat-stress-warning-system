@@ -1,0 +1,22 @@
+{
+  "version": "core-estimator-kalman-hr-only-1.0.0",
+  "features": ["Kalman_Result"],
+  "target": "Core",
+  "seq_len": 20,
+  "label_len": 0,
+  "pred_len": 2,
+  "sample_interval_seconds": 60,
+  "factor": 5,
+  "d_model": 512,
+  "n_heads": 8,
+  "e_layers": 2,
+  "d_layers": 1,
+  "d_ff": 2048,
+  "dropout": 0.01,
+  "attn": "prob",
+  "embed": "timeF",
+  "freq": "t",
+  "activation": "gelu",
+  "distil": true,
+  "mix": true
+}
