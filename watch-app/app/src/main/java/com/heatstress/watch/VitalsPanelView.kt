@@ -73,22 +73,22 @@ class VitalsPanelView @JvmOverloads constructor(
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = SECONDARY_TEXT
         textAlign = Paint.Align.CENTER
-        textSize = 12f
+        textSize = 14f
         typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        textSize = 13f
+        textSize = 15f
         typeface = Typeface.create("sans-serif", Typeface.BOLD)
     }
     private val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 10f
+        textSize = 12f
         typeface = Typeface.create("sans-serif", Typeface.NORMAL)
     }
     private val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = SECONDARY_TEXT
         textAlign = Paint.Align.CENTER
-        textSize = 9f
+        textSize = 11f
         typeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
     }
     private val frameRect = RectF()
@@ -134,7 +134,7 @@ class VitalsPanelView @JvmOverloads constructor(
             bloodPressureText(), "mmHg", "血压", BP_COLOR, "BP"
         )
 
-        val detailY = h - 14f
+        val detailY = h - 13f
         detailPaint.color = STEPS_COLOR
         canvas.drawText("步数 ${steps ?: "--"}", w * 0.18f, detailY, detailPaint)
         detailPaint.color = wornColor()
@@ -146,11 +146,11 @@ class VitalsPanelView @JvmOverloads constructor(
     private fun drawHeader(canvas: Canvas, width: Float) {
         statusPaint.textAlign = Paint.Align.LEFT
         statusPaint.color = if (relayConnected) NORMAL_COLOR else CAUTION_COLOR
-        canvas.drawText(if (relayConnected) "中继已连接" else "中继连接中", width * 0.28f, 22f, statusPaint)
+        canvas.drawText(if (relayConnected) "中继已连接" else "中继连接中", width * 0.28f, 23f, statusPaint)
 
         statusPaint.textAlign = Paint.Align.RIGHT
         statusPaint.color = SECONDARY_TEXT
-        canvas.drawText("电量 ${batteryLevel?.let { "$it%" } ?: "--%"}", width * 0.72f, 22f, statusPaint)
+        canvas.drawText("电量 ${batteryLevel?.let { "$it%" } ?: "--%"}", width * 0.72f, 23f, statusPaint)
     }
 
     private fun drawGauge(
@@ -173,19 +173,25 @@ class VitalsPanelView @JvmOverloads constructor(
         }
 
         valuePaint.textSize = when {
-            value.length >= 6 -> 17f
-            value.length >= 4 -> 20f
-            else -> 24f
+            value.length >= 6 -> 19f
+            value.length >= 4 -> 22f
+            else -> 27f
         }
-        canvas.drawText(value, centerX, centerY + 2f, valuePaint)
-
-        unitPaint.textSize = if (unit == "mmHg") 7f else 9f
+        unitPaint.textSize = if (unit == "mmHg") 8f else 10f
+        val combinedWidth = valuePaint.measureText(value) + 2f + unitPaint.measureText(unit)
+        val maxCombinedWidth = radius * 1.75f
+        if (combinedWidth > maxCombinedWidth) {
+            val scale = maxCombinedWidth / combinedWidth
+            valuePaint.textSize *= scale
+            unitPaint.textSize *= scale
+        }
+        canvas.drawText(value, centerX, centerY + 1f, valuePaint)
         val valueHalfWidth = valuePaint.measureText(value) / 2f
-        canvas.drawText(unit, centerX + valueHalfWidth + 2f, centerY - 2f, unitPaint)
+        canvas.drawText(unit, centerX + valueHalfWidth + 2f, centerY - 3f, unitPaint)
 
         iconPaint.color = color
-        canvas.drawText(icon, centerX, centerY + radius * 0.48f, iconPaint)
-        canvas.drawText(label, centerX, centerY + radius + 16f, labelPaint)
+        canvas.drawText(icon, centerX, centerY + radius * 0.52f, iconPaint)
+        canvas.drawText(label, centerX, centerY + radius + 18f, labelPaint)
     }
 
     private fun bloodPressureText(): String =
