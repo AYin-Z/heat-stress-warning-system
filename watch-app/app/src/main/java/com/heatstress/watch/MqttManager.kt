@@ -28,6 +28,8 @@ class MqttManager(
     private val vitalTopic = "watch/$deviceId/vital"
     private val alertTopic = "watch/$deviceId/alert"
     private val timeTopic = "watch/$deviceId/time"
+    private val bindTopic = "watch/$deviceId/bind"
+    private val bindResponseTopic = "watch/$deviceId/bind/response"
 
     @Volatile private var connected = false
     @Volatile private var stopped = false
@@ -42,6 +44,7 @@ class MqttManager(
 
     var onAlertReceived: ((String) -> Unit)? = null
     var onTimeSyncReceived: ((String) -> Unit)? = null
+    var onBindResponseReceived: ((String) -> Unit)? = null
     var onConnectionChanged: ((Boolean) -> Unit)? = null
 
     init {
@@ -66,6 +69,8 @@ class MqttManager(
                     onAlertReceived?.invoke(String(message.payload, Charsets.UTF_8))
                 } else if (topic == timeTopic && message != null) {
                     onTimeSyncReceived?.invoke(String(message.payload, Charsets.UTF_8))
+                } else if (topic == bindResponseTopic && message != null) {
+                    onBindResponseReceived?.invoke(String(message.payload, Charsets.UTF_8))
                 }
             }
 
@@ -126,6 +131,24 @@ class MqttManager(
         }
     }
 
+    fun publishBindRequest(macAddress: String) {
+        if (!isConnected()) {
+            Log.w(TAG, "Bind request skipped: MQTT not connected")
+            return
+        }
+        val payload = linkedMapOf<String, Any>(
+            "deviceId" to deviceId,
+            "mac" to macAddress,
+            "timestamp" to System.currentTimeMillis(),
+            "action" to "bind"
+        )
+        try {
+            publish(bindTopic, gson.toJson(payload), retained = false)
+        } catch (e: Exception) {
+            Log.w(TAG, "Bind request publish failed: ${e.message}")
+        }
+    }
+
     fun isConnected(): Boolean = connected && client.isConnected
 
     fun disconnect() {
@@ -161,7 +184,7 @@ class MqttManager(
 
     private suspend fun initializeSession() {
         try {
-            client.subscribe(arrayOf(alertTopic, timeTopic), intArrayOf(QOS, QOS))
+            client.subscribe(arrayOf(alertTopic, timeTopic, bindResponseTopic), intArrayOf(QOS, QOS, QOS))
             publishStatus(true)
             flushOfflineQueue()
         } catch (e: Exception) {

@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -21,6 +22,7 @@ class MainActivity : Activity() {
     private lateinit var vitalsPanel: VitalsPanelView
     private lateinit var tvAlert: TextView
     private lateinit var tvAdvice: TextView
+    private lateinit var btnBind: TextView
 
     private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -68,6 +70,13 @@ class MainActivity : Activity() {
         vitalsPanel = findViewById(R.id.vitalsPanel)
         tvAlert = findViewById(R.id.tvAlert)
         tvAdvice = findViewById(R.id.tvAdvice)
+        btnBind = findViewById(R.id.btnBind)
+        btnBind.setOnClickListener {
+            Log.i("MainActivity", "Bind button clicked, requesting bind broadcast")
+            LocalBroadcastManager.getInstance(this).sendBroadcast(
+                Intent(SensorService.ACTION_REQUEST_BIND)
+            )
+        }
     }
 
     private fun renderState(intent: Intent) {

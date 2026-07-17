@@ -64,6 +64,7 @@ class SensorService : Service() {
     @Volatile private var longitude: Double? = null
     @Volatile private var gpsAccuracy: Float? = null
     @Volatile private var lastLocationElapsedMs = 0L
+    private val macAddress: String by lazy { readWlanMacAddress() }
 
     private var lastHeartSampleMs = 0L
     private var lastSpo2SampleMs = 0L
@@ -72,7 +73,10 @@ class SensorService : Service() {
 
     private val stateRequestReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_REQUEST_STATE) broadcastState()
+            when (intent?.action) {
+                ACTION_REQUEST_STATE -> broadcastState()
+                ACTION_REQUEST_BIND -> handleBindRequest()
+            }
         }
     }
 
@@ -106,13 +110,17 @@ class SensorService : Service() {
             onTimeSyncReceived = { payload ->
                 serviceScope.launch { handleTimeSync(payload) }
             }
+            onBindResponseReceived = { payload -> handleBindResponse(payload) }
         }
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("正在启动监测"))
         LocalBroadcastManager.getInstance(this).registerReceiver(
             stateRequestReceiver,
-            IntentFilter(ACTION_REQUEST_STATE)
+            IntentFilter().apply {
+                addAction(ACTION_REQUEST_STATE)
+                addAction(ACTION_REQUEST_BIND)
+            }
         )
         startWorkers()
     }
@@ -425,6 +433,39 @@ class SensorService : Service() {
         }
     }
 
+    private fun handleBindRequest() {
+        Log.i(TAG, "Bind request received, publishing MAC=$macAddress")
+        mqttManager.publishBindRequest(macAddress)
+        broadcastState()
+    }
+
+    private fun handleBindResponse(payload: String) {
+        try {
+            val json = JsonParser.parseString(payload).asJsonObject
+            val ok = json.get("ok")?.asBoolean ?: false
+            Log.i(TAG, "Bind response: ok=$ok, ${json.get("message")?.asString}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Invalid bind response: ${e.message}")
+        }
+    }
+
+    private fun readWlanMacAddress(): String {
+        try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                if (iface.name == "wlan0") {
+                    val mac = iface.hardwareAddress
+                    if (mac != null && mac.size == 6) {
+                        return mac.joinToString(":") { "%02x".format(it) }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return Build.SERIAL.takeIf { it.isNotBlank() && it != Build.UNKNOWN } ?: "unknown"
+    }
+
     private fun broadcastState() {
         val intent = Intent(ACTION_STATE_UPDATE).setPackage(packageName)
             .putExtra(EXTRA_CONNECTED, mqttManager.isConnected())
@@ -437,6 +478,8 @@ class SensorService : Service() {
         diastolic?.let { intent.putExtra(EXTRA_BP_DIA, it) }
         steps?.let { intent.putExtra(EXTRA_STEPS, it) }
         gpsAccuracy?.let { intent.putExtra(EXTRA_GPS_ACCURACY, it) }
+        intent.putExtra(EXTRA_MAC_ADDRESS, macAddress)
+        intent.putExtra(EXTRA_DEVICE_ID, mqttManager.deviceId)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
@@ -536,6 +579,7 @@ class SensorService : Service() {
         const val ACTION_STATE_UPDATE = "com.heatstress.watch.STATE_UPDATE"
         const val ACTION_ALERT_UPDATE = "com.heatstress.watch.ALERT_UPDATE"
         const val ACTION_REQUEST_STATE = "com.heatstress.watch.REQUEST_STATE"
+        const val ACTION_REQUEST_BIND = "com.heatstress.watch.REQUEST_BIND"
         const val EXTRA_CONNECTED = "connected"
         const val EXTRA_BATTERY = "battery"
         const val EXTRA_HEART_RATE = "heart_rate"
@@ -546,6 +590,8 @@ class SensorService : Service() {
         const val EXTRA_STEPS = "steps"
         const val EXTRA_WORN = "worn"
         const val EXTRA_GPS_ACCURACY = "gps_accuracy"
+        const val EXTRA_MAC_ADDRESS = "mac_address"
+        const val EXTRA_DEVICE_ID = "device_id"
         const val EXTRA_SUMMARY = "summary"
         const val EXTRA_ALERT_TYPE = "alert_type"
         const val EXTRA_ALERT_ADVICE = "alert_advice"
