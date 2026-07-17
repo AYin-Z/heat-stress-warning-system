@@ -96,7 +96,11 @@ class OfflineQueue(context: Context) {
             )
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            Log.w(TAG, "Schema upgrade $oldVersion → $newVersion: dropping queue")
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+            onCreate(db)
+        }
     }
 
     companion object {

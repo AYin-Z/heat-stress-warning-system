@@ -9,14 +9,11 @@ const { Text } = Typography;
 
 export default function TopStatusBar() {
   const { state, getRiskStats } = useAppState();
+  const stats = getRiskStats();
   const online = state.onlineDevices.size;
-  const knownDevices = new Set([
-    ...Object.keys(state.officers),
-    ...Object.keys(state.devices),
-    ...state.onlineDevices,
-  ]);
-  const offline = Math.max(0, knownDevices.size - online);
-  const unavailable = getRiskStats().unavailable;
+  const offline = stats.offline;
+  const monitoring = stats.monitoring;
+  const unavailable = stats.unavailable;
 
   const totalAlerts = state.alertRecords.length;
 
@@ -49,6 +46,7 @@ export default function TopStatusBar() {
           </Text>
         </Space>
         {unavailable > 0 && <Tag color="default">数据不可用 {unavailable}</Tag>}
+        {monitoring > 0 && <Tag color="blue">监测中 {monitoring}</Tag>}
         <Space>
           <Badge status="default" color="#8c8c8c" />
           <Text style={{ color: '#8c8c8c', fontWeight: 500 }}>

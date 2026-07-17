@@ -48,10 +48,10 @@ function getRiskLevel(data: VitalData): RiskLevel {
   if (
     data.worn === false ||
     data.dataQuality === 'not_worn' ||
-    data.dataQuality === 'no_vitals' ||
-    data.coreTemp == null
+    data.dataQuality === 'no_vitals'
   ) return RL.Unavailable;
   if (data.riskLevel && data.riskLevel !== RL.Normal) return data.riskLevel;
+  if (data.coreTemp == null) return RL.Monitoring;
   if (data.coreTemp >= TEMP_THRESHOLDS.WARNING_MAX) return RL.HighRisk;
   if (data.coreTemp >= TEMP_THRESHOLDS.NORMAL_MAX) return RL.Warning;
   return RL.Normal;
@@ -99,6 +99,19 @@ function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'ALERT':
+      // 将告警中的核心温度回写至对应设备，使其从"监测中"进入风险分级
+      if (action.payload.coreTemp != null && state.devices[action.payload.deviceId]) {
+        state = {
+          ...state,
+          devices: {
+            ...state.devices,
+            [action.payload.deviceId]: {
+              ...state.devices[action.payload.deviceId],
+              coreTemp: action.payload.coreTemp,
+            },
+          },
+        };
+      }
       return { ...state, activeAlert: action.payload };
 
     case 'ALERT_RECORD':
@@ -150,6 +163,7 @@ interface AppContextValue {
     normal: number;
     warning: number;
     highRisk: number;
+    monitoring: number;
     unavailable: number;
     offline: number;
   };
@@ -174,11 +188,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.devices, state.officers]);
 
   const getRiskStats = useCallback(() => {
-    let normal = 0, warning = 0, highRisk = 0, unavailable = 0, offline = 0;
+    let normal = 0, warning = 0, highRisk = 0, monitoring = 0, unavailable = 0, offline = 0;
     const allDevices = new Set([
       ...Object.keys(state.devices),
-      ...Object.keys(state.officers),
       ...state.onlineDevices,
+      // 只纳入曾经上线或有数据的 officer，避免纯注册未连接者计入"离线"
+      ...Object.keys(state.officers).filter(
+        (id) => state.devices[id] || state.onlineDevices.has(id)
+      ),
     ]);
 
     allDevices.forEach((id) => {
@@ -191,11 +208,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case RL.Normal: normal++; break;
         case RL.Warning: warning++; break;
         case RL.HighRisk: highRisk++; break;
+        case RL.Monitoring: monitoring++; break;
         default: unavailable++;
       }
     });
 
-    return { normal, warning, highRisk, unavailable, offline };
+    return { normal, warning, highRisk, monitoring, unavailable, offline };
   }, [state.devices, state.onlineDevices, state.officers]);
 
   const getOfficerName = useCallback(

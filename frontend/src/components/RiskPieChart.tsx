@@ -61,6 +61,11 @@ export default function RiskPieChart() {
             itemStyle: { color: '#ff4d4f' },
           },
           {
+            value: stats.monitoring,
+            name: '监测中',
+            itemStyle: { color: '#1890ff' },
+          },
+          {
             value: stats.unavailable,
             name: '数据不可用',
             itemStyle: { color: '#5c7c8a' },

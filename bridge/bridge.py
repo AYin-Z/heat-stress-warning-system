@@ -56,7 +56,7 @@ class DeviceState:
     last_alert_check: float = 0.0
     last_steps: Optional[int] = None
     last_steps_at: float = 0.0
-    in_flight_alert_ids: set[int] = field(default_factory=set)
+    in_flight_alert_ids: dict[int, float] = field(default_factory=dict)  # alert_id → enqueue_time
     published_alert_ids: set[int] = field(default_factory=set)
     acknowledged_alert_ids: set[int] = field(default_factory=set)
 
@@ -113,9 +113,15 @@ class DeviceRegistry:
             return False
         with self._lock:
             state = self._devices.setdefault(mqtt_id, DeviceState(mqtt_id=mqtt_id))
+            # 淘汰超过 120 秒的僵尸 in-flight（进程崩溃残留）
+            cutoff = time.time() - 120
+            stale = [aid for aid, ts in state.in_flight_alert_ids.items() if ts < cutoff]
+            for aid in stale:
+                del state.in_flight_alert_ids[aid]
+                log.warning("[%s] Cleared stale in-flight alert %d", mqtt_id, aid)
             if alert_id in state.acknowledged_alert_ids or alert_id in state.in_flight_alert_ids:
                 return None
-            state.in_flight_alert_ids.add(alert_id)
+            state.in_flight_alert_ids[alert_id] = time.time()
             return alert_id in state.published_alert_ids
 
     def complete_alert_delivery(
@@ -130,13 +136,13 @@ class DeviceRegistry:
             return
         with self._lock:
             state = self._devices.setdefault(mqtt_id, DeviceState(mqtt_id=mqtt_id))
-            state.in_flight_alert_ids.discard(alert_id)
+            state.in_flight_alert_ids.pop(alert_id, None)
             if published:
                 state.published_alert_ids.add(alert_id)
             if acknowledged:
                 state.acknowledged_alert_ids.add(alert_id)
             if len(state.acknowledged_alert_ids) >= 500:
-                state.published_alert_ids.intersection_update(state.in_flight_alert_ids)
+                state.published_alert_ids -= set(state.acknowledged_alert_ids)
                 state.acknowledged_alert_ids.clear()
 
 
@@ -292,7 +298,8 @@ def iso_timestamp(payload: dict[str, Any]) -> Optional[str]:
         original = int(payload.get("timestamp")) / 1000.0
     except (TypeError, ValueError):
         return None
-    if abs(timestamp - original) > 1:
+    # 允许 10 分钟以内的时钟偏差（原 1 秒阈值过严）
+    if abs(timestamp - original) > 600:
         return None
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).astimezone().isoformat(timespec="seconds")
 
@@ -337,14 +344,13 @@ def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
     core_temperature = optional_float(payload, "coreTemp", 30, 45)
     latitude, longitude = valid_coordinates(payload)
 
-    complete_vitals = (
+    has_any_vital = (
         heart_rate is not None
-        and blood_oxygen is not None
-        and systolic is not None
-        and diastolic is not None
+        or blood_oxygen is not None
+        or (systolic is not None and diastolic is not None)
     )
-    if not complete_vitals:
-        log.debug("[%s] Incomplete vital frame ignored (quality=%s)", mqtt_id, payload.get("dataQuality"))
+    if not has_any_vital:
+        log.debug("[%s] Vital frame has no usable health data (quality=%s)", mqtt_id, payload.get("dataQuality"))
         return
 
     response = api.upload(

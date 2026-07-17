@@ -139,7 +139,9 @@ class SensorService : Service() {
         serviceScope.launch {
             delay(2_000L)
             while (isActive) {
-                val result = NtpSync.synchronizeClock()
+                val result = withTimeoutOrNull(10_000L) {
+                    NtpSync.synchronizeClock()
+                } ?: NtpSync.SyncResult(false, null, "NTP DNS timeout", corrected = false)
                 Log.i(TAG, "Time sync: ${result.message}, drift=${result.driftMs}")
                 delay(if (result.success) TIME_SYNC_INTERVAL_MS else TIME_SYNC_RETRY_MS)
             }

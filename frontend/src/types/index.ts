@@ -7,6 +7,7 @@ export const RiskLevel = {
   Normal: 'normal',
   Warning: 'warning',
   HighRisk: 'high_risk',
+  Monitoring: 'monitoring',
   Unavailable: 'unavailable',
   Offline: 'offline',
 } as const;

@@ -24,6 +24,7 @@ export default function OfficerDetail() {
     [RiskLevel.Normal]: '#52c41a',
     [RiskLevel.Warning]: '#fa8c16',
     [RiskLevel.HighRisk]: '#ff4d4f',
+    [RiskLevel.Monitoring]: '#1890ff',
     [RiskLevel.Unavailable]: '#5c7c8a',
     [RiskLevel.Offline]: '#8c8c8c',
   };
@@ -32,6 +33,7 @@ export default function OfficerDetail() {
     [RiskLevel.Normal]: '正常',
     [RiskLevel.Warning]: '普通预警',
     [RiskLevel.HighRisk]: '高风险预警',
+    [RiskLevel.Monitoring]: '监测中',
     [RiskLevel.Unavailable]: device.worn === false ? '未佩戴' : '数据不可用',
     [RiskLevel.Offline]: '离线',
   };
@@ -59,7 +61,9 @@ export default function OfficerDetail() {
                   ? 'warning'
                   : device.riskLevel === RiskLevel.Normal
                     ? 'success'
-                    : 'default'
+                    : device.riskLevel === RiskLevel.Monitoring
+                      ? 'processing'
+                      : 'default'
             }
           >
             {riskLabels[currentRisk]}
