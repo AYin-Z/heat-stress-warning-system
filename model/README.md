@@ -37,7 +37,6 @@
     ├── data/                     # 训练数据加载逻辑
     ├── exp/                      # 训练和评估流程
     ├── estimate/                 # 研究评估表格与图片
-    └── results/                  # 历史实验预测结果
 ```
 
 ## 快速启动
@@ -67,10 +66,30 @@ curl http://127.0.0.1:8001/readyz
 curl -X POST http://127.0.0.1:8001/v1/core-temperature/estimate \
   -H 'Content-Type: application/json' \
   -d '{
-    "device_id": "WATCH-TEST-001",
-    "heart_rates": [82,83,85,84,86,88,90,91,93,92,94,95,96,98,97,99,101,100,102,103],
-    "timestamp": "2026-07-17T10:19:00+08:00"
-  }'
+      "device_id": "WATCH-6B6D32BA",
+      "samples": [
+        {"heart_rate":82,  "timestamp":"2026-07-17T10:00:00+08:00"},
+        {"heart_rate":83,  "timestamp":"2026-07-17T10:01:00+08:00"},
+        {"heart_rate":85,  "timestamp":"2026-07-17T10:02:00+08:00"},
+        {"heart_rate":84,  "timestamp":"2026-07-17T10:03:00+08:00"},
+        {"heart_rate":86,  "timestamp":"2026-07-17T10:04:00+08:00"},
+        {"heart_rate":88,  "timestamp":"2026-07-17T10:05:00+08:00"},
+        {"heart_rate":90,  "timestamp":"2026-07-17T10:06:00+08:00"},
+        {"heart_rate":91,  "timestamp":"2026-07-17T10:07:00+08:00"},
+        {"heart_rate":93,  "timestamp":"2026-07-17T10:08:00+08:00"},
+        {"heart_rate":92,  "timestamp":"2026-07-17T10:09:00+08:00"},
+        {"heart_rate":94,  "timestamp":"2026-07-17T10:10:00+08:00"},
+        {"heart_rate":95,  "timestamp":"2026-07-17T10:11:00+08:00"},
+        {"heart_rate":96,  "timestamp":"2026-07-17T10:12:00+08:00"},
+        {"heart_rate":98,  "timestamp":"2026-07-17T10:13:00+08:00"},
+        {"heart_rate":97,  "timestamp":"2026-07-17T10:14:00+08:00"},
+        {"heart_rate":99,  "timestamp":"2026-07-17T10:15:00+08:00"},
+        {"heart_rate":101, "timestamp":"2026-07-17T10:16:00+08:00"},
+        {"heart_rate":100, "timestamp":"2026-07-17T10:17:00+08:00"},
+        {"heart_rate":102, "timestamp":"2026-07-17T10:18:00+08:00"},
+        {"heart_rate":103, "timestamp":"2026-07-17T10:19:00+08:00"}
+      ]
+    }'
 ```
 
 约束：
