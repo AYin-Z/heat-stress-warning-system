@@ -26,6 +26,7 @@ MQTT_USERNAME = os.environ.get("BRIDGE_MQTT_USERNAME", "")
 MQTT_PASSWORD = os.environ.get("BRIDGE_MQTT_PASSWORD", "")
 MQTT_TOPIC_VITAL = os.environ.get("BRIDGE_MQTT_TOPIC_VITAL", "watch/+/vital")
 MQTT_TOPIC_STATUS = os.environ.get("BRIDGE_MQTT_TOPIC_STATUS", "watch/+/status")
+MQTT_TOPIC_BIND = os.environ.get("BRIDGE_MQTT_TOPIC_BIND", "watch/+/bind")
 MQTT_ALERT_TOPIC_TPL = "watch/{device_id}/alert"
 MQTT_TIME_TOPIC_TPL = "watch/{device_id}/time"
 
@@ -271,12 +272,15 @@ class ApiClient:
                 time.sleep(2**attempt)
         return {"ok": False, "error": "request-failed"}
 
-    def register_device(self, hardware_serial: str) -> dict[str, Any]:
+    def register_device(self, hardware_serial: str, firmware_version: str = "") -> dict[str, Any]:
         return self.request_json(
             "POST",
             "/api/watch/register/",
             device_id=hardware_serial,
-            body={"hardware_serial": hardware_serial, "firmware_version": "A80-bridge/v1.1"},
+            body={
+                "hardware_serial": hardware_serial,
+                "firmware_version": firmware_version or "A80-bridge/v1.1",
+            },
         )
 
     def heartbeat(
@@ -398,6 +402,38 @@ def ensure_registered(mqtt_id: str) -> bool:
             response.get("bind_status", "unknown"),
         )
         return response.get("bind_status") == "active"
+
+
+def forward_bind(mqtt_id: str, payload: dict[str, Any]) -> None:
+    """处理手表绑定请求。"""
+    hardware_serial = str(payload.get("hardwareSerial", mqtt_id))
+    firmware_version = str(payload.get("firmwareVersion", ""))
+    state = registry.get_or_create(mqtt_id)
+    if state.api_device_id and state.bind_status == "active":
+        log.info("[%s] Already bound (%s), skipping bind", mqtt_id, state.api_device_id)
+        return
+    with registration_lock:
+        state = registry.get_or_create(mqtt_id)
+        if state.api_device_id and state.bind_status == "active":
+            return
+        response = api.register_device(hardware_serial, firmware_version)
+        if not response.get("ok"):
+            log.error("[%s] Bind failed: %s", mqtt_id, response)
+            return
+        registry.update(
+            mqtt_id,
+            registered=True,
+            api_device_id=response.get("device_id", ""),
+            bind_status=response.get("bind_status", "unknown"),
+        )
+        log.info(
+            "[%s] Bound: api_id=%s hw=%s fw=%s status=%s",
+            mqtt_id,
+            response.get("device_id", ""),
+            hardware_serial,
+            firmware_version,
+            response.get("bind_status", "unknown"),
+        )
 
 
 def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
@@ -569,6 +605,9 @@ running = True
 
 
 def process_message(kind: str, device_id: str, payload: dict[str, Any]) -> None:
+    if kind == "bind":
+        forward_bind(device_id, payload)
+        return
     if kind == "status" and payload.get("status") == "online":
         publish_time_sync(device_id)
     if not ensure_registered(device_id):
@@ -602,7 +641,7 @@ def extract_device_id(topic: str) -> Optional[str]:
 
 def on_connect(client, userdata, flags, reason_code, properties) -> None:
     if reason_code == 0:
-        client.subscribe([(MQTT_TOPIC_VITAL, 1), (MQTT_TOPIC_STATUS, 1)])
+        client.subscribe([(MQTT_TOPIC_VITAL, 1), (MQTT_TOPIC_STATUS, 1), (MQTT_TOPIC_BIND, 1)])
         log.info("MQTT connected to %s:%d", MQTT_BROKER, MQTT_PORT)
     else:
         log.error("MQTT connection failed: %s", reason_code)
@@ -622,7 +661,7 @@ def on_message(client, userdata, message) -> None:
         payload = json.loads(message.payload.decode("utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("payload is not an object")
-        kind = "vital" if message.topic.endswith("/vital") else "status"
+        kind = "bind" if message.topic.endswith("/bind") else ("vital" if message.topic.endswith("/vital") else "status")
         message_queue.put_nowait((kind, device_id, payload))
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         log.warning("Invalid payload from %s: %s", message.topic, exc)
