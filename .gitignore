@@ -8,13 +8,17 @@ local.properties
 *.iml
 .idea/
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
+# Frontend → 大屏 Django 项目
+frontend/db.sqlite3
+frontend/__pycache__/
+frontend/**/__pycache__/
+frontend/venv/
+frontend/staticfiles/
+frontend/data_cache/
+*.pyc
 
 # Bridge
 bridge/__pycache__/
-*.pyc
 
 # OS
 .DS_Store
