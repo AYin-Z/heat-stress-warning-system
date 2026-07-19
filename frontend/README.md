@@ -134,20 +134,13 @@ python manage.py run_mqtt
 ```bash
 export MQTT_BROKER=39.105.86.77
 export MQTT_PORT=1883
-export AMAP_KEY=你的高德Key
 ```
+
+> 高德地图 Key 和 Secret 已内置在 `heatstress/settings.py`，无需额外配置。
 
 ## 部署
 
-详见 [`docs/deploy-guide.md`](docs/deploy-guide.md)。
-
-```bash
-bash deploy.sh 8001 <MQTT_BROKER_IP>
-```
-
-部署后两个 systemd 服务：
-- `hotproject` — Django/Gunicorn
-- `hotproject-mqtt` — MQTT 客户端
+→ 详见 [部署指南](docs/deploy-guide.md)
 
 ## 项目结构
 
