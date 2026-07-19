@@ -44,7 +44,7 @@ jobs:
       - run: cp heatstress/settings.py.example heatstress/settings.py
       - run: python -m py_compile core/models.py core/views.py core/urls.py core/mqtt_client.py
       - run: python manage.py check
-      - run: python manage.py migrate --dry-run
+      - run: python manage.py migrate
 
   watch:
     name: Watch unit tests and debug build
