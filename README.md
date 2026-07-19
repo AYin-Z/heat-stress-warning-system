@@ -112,7 +112,11 @@ export JUWEI_PLATFORM_KEY_PASSWORD=your_password
 
 ### 大屏端
 
-**本地开发运行：**
+> 💡 本地开发和服务器部署是两条独立的路径，根据需要选一个即可。
+
+#### 方式一：本地开发（端口 8000）
+
+Django `runserver` 开发服务器，适合调试和演示。
 
 ```bash
 cd frontend
@@ -128,25 +132,29 @@ python manage.py import_regions --clear      # 导入行政区划 GIS 数据
 export MQTT_BROKER=39.105.86.77
 export MQTT_PORT=1883
 
-# 终端1：启动 Django Web 服务
+# 终端1：启动 Django Web 服务（8000 端口）
 python manage.py runserver 0.0.0.0:8000
 
 # 终端2：启动 MQTT 客户端（实时接收手表数据）
 python manage.py run_mqtt
 ```
 
-访问 `http://localhost:8000/dashboard/` 查看指挥大屏。
+访问 `http://localhost:8000/dashboard/`。
 
 > 高德地图 Key 已内置，无需额外配置。
 
-**一键部署到服务器：**
+#### 方式二：服务器部署（端口 8001）
+
+Gunicorn + systemd 双服务，生产环境一键部署。
 
 ```bash
 cd frontend
 bash deploy.sh 8001 <MQTT_BROKER_IP>
 ```
 
-脚本自动完成：虚拟环境 → 依赖安装 → 数据库迁移 → systemd 双服务（Web + MQTT 客户端）→ 启动。部署后访问 `http://<服务器IP>:8001/dashboard/`，默认账号 **admin / admin123**。
+脚本自动完成：虚拟环境 → 依赖安装 → 数据库迁移 → systemd 双服务（Web + MQTT 客户端）→ 启动。
+
+部署后访问 `http://<服务器IP>:8001/dashboard/`，默认账号 **admin / admin123**。
 
 详见 [`frontend/docs/deploy-guide.md`](frontend/docs/deploy-guide.md)。
 
