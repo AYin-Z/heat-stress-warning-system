@@ -38,7 +38,7 @@ export MQTT_PORT=1883
 ```bash
 cd /var/www/hot_project
 python3 -m venv venv && source venv/bin/activate
-pip install django==5.2 gunicorn paho-mqtt shapely requests
+pip install -r requirements.txt
 
 python manage.py migrate --noinput
 python manage.py createsuperuser

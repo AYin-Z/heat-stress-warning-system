@@ -36,7 +36,7 @@ source venv/bin/activate
 
 # 安装依赖
 echo "[4/7] 安装依赖..."
-pip install -q django==5.2 gunicorn paho-mqtt shapely requests
+pip install -q -r requirements.txt
 
 # 数据库迁移
 echo "[5/7] 数据库迁移..."
