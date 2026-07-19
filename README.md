@@ -1,185 +1,141 @@
-# 热应激预警系统 (Heat Stress Warning System)
+# 热应激预警系统
 
-PC 端大屏指挥中心，通过 **MQTT 直连 EMQX 中继服务器** 实时接收 A80 智能手表生理数据，结合核心温度推算进行热应激预警，预警信号自动分发到手表。
+> A80 智能手表生理监测 → MQTT 消息中继 → 大屏实时可视化
+> 
+> **项目地址**：[github.com/AYin-Z/heat-stress-warning-system](https://github.com/AYin-Z/heat-stress-warning-system)
 
-## 系统架构
+---
+
+## 仓库结构
 
 ```
-A80 手表 ──MQTT(TCP)──▶ EMQX (中继)
-                            │
-          ┌─────────────────┼─────────────────┐
-          ▼                 ▼                  ▼
-    中继(bridge.py)    大屏/后端(本项目)    手表(alert)
-    校时+模型API       MQTT客户端订阅
-                             │
-                      预警检测 ──► MQTT发布 watch/{id}/alert
+├── watch-app/                 ← 移动端（A80 手表 Android 应用）
+│   ├── app/src/               Android 源码（Kotlin）
+│   └── keystore/              平台签名证书
+│
+├── frontend/                  ← 大屏端（React 实时监控面板）
+│   ├── src/components/        6 个 UI 组件
+│   ├── src/services/mqtt.ts   MQTT WebSocket 客户端
+│   ├── src/store/             全局状态（Context + Reducer）
+│   └── src/types/             类型定义
+│
+├── bridge/                    ← 中继服务器（MQTT ↔ HTTP 桥接）
+│   ├── bridge.py              主程序（596 行 Python）
+│   ├── test_bridge.py         单元测试
+│   └── heatstress-bridge.service  systemd 部署文件
+│
+├── model/                     ← 模型端（核心温度推算，待实现）
+│
+├── docs/                      ← 文档
+│   ├── api/                    API 文档（大屏同学从这里开始）
+│   │   ├── mqtt-api.md         大屏 ↔ MQTT 接口
+│   │   └── bridge-http-api.md  中继 ↔ 后端 HTTP 接口
+│   ├── product/                产品需求与硬件文档
+│   └── reports/                测试报告
+│
+└── .github/workflows/         CI（三端构建 + 测试）
+```
+
+---
+
+## 面向不同角色的阅读顺序
+
+| 角色 | 先读 |
+|---|---|
+| 🖥 **做大屏的同学** | → [`docs/api/mqtt-api.md`](docs/api/mqtt-api.md)（连接 MQTT 就能拿到数据） |
+| 🔧 **做后端的同学** | → [`docs/api/bridge-http-api.md`](docs/api/bridge-http-api.md)（实现 watch API） |
+| 🤖 **做模型的同学** | → [`model/README.md`](model/README.md) |
+| 📱 **做移动端的同学** | → `mobile/` 源码 + [测试报告](docs/reports/REAL_DEVICE_TEST_REPORT.md) |
+| 🚀 **部署运维** | → [`bridge/heatstress-bridge.service`](bridge/heatstress-bridge.service) + 下方架构图 |
+
+---
+
+## 数据流
+
+```
+A80 手表 ──MQTT──▶ EMQX (39.105.86.77)
+                       │
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+      中继服务器     大屏(WS)     手表(alert)
+      (bridge)     (dashboard)   (订阅)
+          │
+      HTTP ▼
+    后端 API (101.201.29.99:8001)
 ```
 
 | 链路 | 协议 | 说明 |
-|------|------|------|
+|---|---|---|
 | 手表 → EMQX | MQTT TCP | 15s vital + 60s status + LWT 遗嘱 |
-| 后端 → EMQX | MQTT TCP | 订阅 bind/vital/status/alert，发布预警 |
-| 中继 → EMQX | MQTT TCP | 校时 + 核心温度模型 |
+| 大屏 → EMQX | MQTT WebSocket | 订阅 `watch/+/vital` `watch/+/status` `watch/+/alert` |
+| 中继 → EMQX | MQTT TCP | 订阅 vital/status，发布 alert/time |
+| 中继 → 后端 | HTTP JSON | 6 秒超时，指数退避重试 |
 
-## 技术栈
+---
 
-| 层级 | 技术 |
-|------|------|
-| 后端 | Django 5.2 + Gunicorn |
-| MQTT | paho-mqtt 2.x |
-| 前端 | 原生 HTML/CSS/JS + 高德地图 JS API 2.0 + ECharts 5.5 |
-| 数据库 | SQLite |
-| GIS | Shapely（行政区划点面匹配） |
-| 部署 | Linux systemd × 2（Web + MQTT 客户端） |
+## MQTT 主题
 
-## 核心功能
+| 主题 | 方向 | QoS | 说明 |
+|---|---|---|---|
+| `watch/{id}/vital` | 手表→大屏/中继 | 1 | 生理数据（15s） |
+| `watch/{id}/status` | 手表→大屏/中继 | 1 | 在线状态（60s，retained，LWT） |
+| `watch/{id}/alert` | 中继→手表/大屏 | 1 | 预警下发（按需） |
+| `watch/{id}/time` | 中继→手表 | 1 | 校时（上线时） |
 
-### 指挥大屏 `/dashboard/`
-- 高德地图：设备位置、轨迹、辖区多边形
-- 实时生命体征面板（心率/血氧/血压/核心温度）
-- 热应激预警弹窗 + 侧边栏历史
-- 8 项统计概览（在线/离线/监测中/数据不可用/从未上报/预警）
-- MQTT 实时推送，10 秒轮询刷新
+---
 
-### 项目管理 `/projects/`
-- 项目 CRUD + 唯一 recording 机制
-- 省→市→县三级行政区划联动（含直辖市、省直辖县自动适配）
-- 单区域强制（一个项目一个辖区）
-- 辖区配色自定义 + CSV 健康数据导出
+## 当前状态
 
-### 用户管理 `/users/`
-- 左侧项目/设备树形目录
-- 设备详情编辑（民警姓名/年龄/性别/标记样式）
-- 离线时长显示（"离线 X天X小时"）
-- 地理围栏过滤
+- ✅ 手表端：采集+MQTT+离线队列+告警接收+开机自启
+- ✅ 中继端：MQTT↔HTTP 桥接+校时+告警轮询+ACK
+- ✅ 大屏端：实时面板+风险饼图+地图+预警弹窗
+- ✅ CI：GitHub Actions 三端自动化
+- ❌ 模型端：尚未接入
+- ❌ 手表：无独立网络（依赖 ADB USB）
+- ❌ 后端：队友 API 未上线
 
-### MQTT 数据接收
-| 主题 | 频率 | 说明 |
-|------|:---:|------|
-| `watch/+/bind` | 按需 | 手表绑定 → 自动创建/激活 |
-| `watch/+/vital` | 15s | 生理数据 |
-| `watch/+/status` | 60s | 在线状态 + LWT |
-| `watch/+/alert` | 按需 | 预警通知 |
+详见 [测试报告](docs/reports/REAL_DEVICE_TEST_REPORT.md)。
 
-### 关键机制
+---
 
-| 机制 | 说明 |
-|------|------|
-| **地理围栏** | 辖区几何 + 10km 缓冲，辖区外设备不显示（大屏/统计/用户管理均适用） |
-| **离线超时** | 90 秒无上报 → 自动视为离线 |
-| **自动发现** | 手表首次发数据 → 自动创建 + 激活 + 归入 recording 项目 |
-| **项目切换** | 设备上报时自动归入 recording 项目，支持跨城市演示自动切换 |
-| **坐标回退** | 当前坐标为 NULL → 取历史最后已知坐标 |
-| **去重** | MQTT 创建 A80-* 设备时自动清理 HTTP 注册的 WATCH-* 虚设备 |
-| **软编码** | 全国任意区县可用，辖区从项目 M2M 动态读取，无硬编码 |
+## 构建
 
-### 手表端 API
-| 端点 | 用途 | 鉴权 |
-|------|------|:---:|
-| `POST /api/watch/register/` | 注册 | 无 |
-| `POST /api/watch/upload/` | 体征上传 | X-Device-ID |
-| `POST /api/watch/heartbeat/` | 状态上报 | X-Device-ID |
-| `GET /api/watch/alerts/` | 拉取预警 | X-Device-ID |
-
-## 数据模型
-
-```
-Project ──< Device ──< HealthData
-                    ├── DeviceLocation (轨迹)
-                    └── Alert (预警)
-Region (省/市/县三级，含 GeoJSON)
-```
-
-| 模型 | 说明 |
-|------|------|
-| **Project** | 项目/任务，M2M 关联辖区 Region |
-| **Device** | 手表，绑定民警信息/在线状态/电量/GPS |
-| **HealthData** | 生理数据（全部 nullable，中继未报= NULL） |
-| **Alert** | 热应激预警（普通/高风险） |
-| **DeviceLocation** | GPS 轨迹点 |
-| **Region** | 行政区划（省/市/县，含 GeoJSON 边界） |
-
-## 风险等级
-
-| 等级 | 条件 | 颜色 |
-|------|------|------|
-| 正常 | coreTemp < 38℃ | 🟢 绿 |
-| 普通预警 | 38℃ ≤ coreTemp < 39℃ | 🟠 橙 |
-| 高风险预警 | coreTemp ≥ 39℃ | 🔴 红 |
-| 监测中 | 有数据但缺 coreTemp | 🔵 蓝 |
-| 数据不可用 | 未佩戴/无体征 | 灰蓝 |
-| 离线 | 90s 无上报 | ⚫ 深灰 |
-
-## 快速开始
+### 移动端
+### 移动端
 
 ```bash
-# 安装依赖
+cd watch-app
+export JUWEI_PLATFORM_STORE_FILE=/path/to/platform.jks
+export JUWEI_PLATFORM_STORE_PASSWORD=your_password
+export JUWEI_PLATFORM_KEY_ALIAS=android_platform
+export JUWEI_PLATFORM_KEY_PASSWORD=your_password
+./gradlew assembleRelease \
+  -Pdevice_id=A80-PROD-001 \
+  -Pmqtt_url=tcp://39.105.86.77:1883
+```
+
+### 大屏端
+
+```bash
+cd frontend
+cp .env.example .env   # 编辑 MQTT 地址
+npm install && npm run build
+```
+
+### 中继端
+
+```bash
+cd bridge
 pip install -r requirements.txt
-
-# 数据库 + 管理员
-python manage.py migrate
-python manage.py createsuperuser
-
-# 导入行政区划
-python manage.py import_regions --clear
-
-# 启动 Web 服务
-python manage.py runserver 0.0.0.0:8000
-
-# 另一个终端启动 MQTT 客户端
-python manage.py run_mqtt
+BRIDGE_MQTT_BROKER=localhost BRIDGE_API_BASE=http://... python bridge.py
 ```
 
-设置环境变量：
-```bash
-export MQTT_BROKER=39.105.86.77
-export MQTT_PORT=1883
-export AMAP_KEY=你的高德Key
-```
+---
 
-## 部署
+## 已知限制
 
-详见 [`docs/deploy-guide.md`](docs/deploy-guide.md)。
-
-```bash
-bash deploy.sh 8001 <MQTT_BROKER_IP>
-```
-
-部署后两个 systemd 服务：
-- `hotproject` — Django/Gunicorn
-- `hotproject-mqtt` — MQTT 客户端
-
-## 项目结构
-
-```
-.
-├── core/                          # 主应用
-│   ├── models.py                  # 数据模型 + 风险分类 + 在线判定
-│   ├── views.py                   # 视图（大屏 + 项目 + 手表 API + 地理围栏）
-│   ├── urls.py                    # 路由（30+ 端点）
-│   ├── mqtt_client.py             # MQTT 客户端（直连 EMQX）
-│   └── management/commands/
-│       ├── import_regions.py      # 导入行政区划
-│       └── run_mqtt.py            # 启动 MQTT 客户端
-├── heatstress/                    # Django 配置
-│   └── settings.py
-├── templates/
-│   ├── dashboard.html             # 指挥大屏
-│   ├── projects.html              # 项目管理
-│   ├── users.html                 # 用户管理
-│   └── login.html
-├── static/
-│   ├── css/projects.css
-│   └── js/projects.js
-├── docs/
-│   ├── watch-api.md               # API 接口文档
-│   └── deploy-guide.md            # 部署指南
-├── deploy.sh                      # 一键部署
-├── manage.py
-└── requirements.txt
-```
-
-## 文档
-
-- [API 接口文档](docs/watch-api.md)
-- [部署指南](docs/deploy-guide.md)
+- A80 无 Wi-Fi/SIM：MQTT 依赖 `adb reverse`，脱离电脑断连
+- 时钟不可信：冷启动回到 2012 年，依赖 MQTT 校时（离线无 NTP 兜底）
+- MQTT 无安全：匿名访问 + 明文 + 自签名证书
+- 核心温度缺失：手表不计算，后端模型未接入
+- Django 大屏后端存在空值写入故障（README 历史记录）
