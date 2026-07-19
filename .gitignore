@@ -15,6 +15,8 @@ frontend/**/__pycache__/
 frontend/venv/
 frontend/staticfiles/
 frontend/data_cache/
+frontend/node_modules/
+frontend/dist/
 *.pyc
 
 # Bridge
