@@ -98,6 +98,7 @@ A80 手表 ──MQTT(TCP)──▶     │     │                             
 ## 构建
 
 ### 移动端
+
 ```bash
 cd watch-app
 export JUWEI_PLATFORM_STORE_FILE=/path/to/platform.jks
@@ -110,13 +111,44 @@ export JUWEI_PLATFORM_KEY_PASSWORD=your_password
 ```
 
 ### 大屏端
+
+**本地开发运行：**
+
 ```bash
 cd frontend
-python -m venv venv && source venv/bin/activate
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# 数据库初始化
 python manage.py migrate
+python manage.py createsuperuser
+python manage.py import_regions --clear      # 导入行政区划 GIS 数据
+
+# 配置 MQTT 地址
+export MQTT_BROKER=39.105.86.77
+export MQTT_PORT=1883
+
+# 终端1：启动 Django Web 服务
 python manage.py runserver 0.0.0.0:8000
+
+# 终端2：启动 MQTT 客户端（实时接收手表数据）
+python manage.py run_mqtt
 ```
+
+访问 `http://localhost:8000/dashboard/` 查看指挥大屏。
+
+> 高德地图 Key 已内置，无需额外配置。
+
+**一键部署到服务器：**
+
+```bash
+cd frontend
+bash deploy.sh 8001 <MQTT_BROKER_IP>
+```
+
+脚本自动完成：虚拟环境 → 依赖安装 → 数据库迁移 → systemd 双服务（Web + MQTT 客户端）→ 启动。部署后访问 `http://<服务器IP>:8001/dashboard/`，默认账号 **admin / admin123**。
+
+详见 [`frontend/docs/deploy-guide.md`](frontend/docs/deploy-guide.md)。
 
 ### 中继端
 ```bash
