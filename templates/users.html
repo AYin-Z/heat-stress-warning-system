@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 热应激预警系统</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0e17;
+            color: #c8d6e5;
+            min-height: 100vh;
+        }
+        .page-header {
+            background: rgba(16,24,40,0.95);
+            border-bottom: 1px solid rgba(24,144,255,0.2);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .page-header h2 { font-size: 18px; letter-spacing: 2px; }
+        .nav-links { display: flex; gap: 16px; }
+        .nav-links a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; }
+        .nav-links a:hover, .nav-links a.active { color: #1890FF; }
+        .container { max-width: 1100px; margin: 24px auto; padding: 0 20px; }
+        .page-layout { display: flex; gap: 20px; }
+        .tree-panel {
+            width: 300px;
+            background: rgba(16,24,40,0.8);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 500px;
+        }
+        .tree-panel h3 { font-size: 14px; margin-bottom: 12px; color: rgba(255,255,255,0.6); }
+        .tree-node { padding: 6px 10px; cursor: pointer; border-radius: 4px; font-size: 13px; }
+        .tree-node:hover { background: rgba(255,255,255,0.04); }
+        .tree-node.project { font-weight: 500; color: #1890FF; padding-left: 4px; }
+        .tree-node.device { padding-left: 24px; color: rgba(255,255,255,0.6); }
+        .tree-node.device.online::before { content: '🟢 '; }
+        .tree-node.device.offline::before { content: '⚫ '; }
+        .detail-panel {
+            flex: 1;
+            background: rgba(16,24,40,0.8);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 24px;
+        }
+        .detail-panel h3 { font-size: 15px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+        .form-group label { width: 80px; font-size: 12px; color: rgba(255,255,255,0.5); text-align: right; }
+        .form-group input, .form-group select {
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            color: #c8d6e5;
+            font-size: 13px;
+            outline: none;
+            max-width: 300px;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: #1890FF; }
+        .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+        .btn {
+            background: rgba(24,144,255,0.15);
+            border: 1px solid rgba(24,144,255,0.3);
+            color: #1890FF;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: rgba(24,144,255,0.25); }
+        .btn-primary { background: #1890FF; color: #fff; border-color: #1890FF; }
+        .btn-primary:hover { background: #40a9ff; }
+        .btn-danger { border-color: rgba(255,77,79,0.3); color: #ff4d4f; background: rgba(255,77,79,0.1); }
+        .btn-danger:hover { background: rgba(255,77,79,0.2); }
+        .empty-state { text-align: center; color: rgba(255,255,255,0.3); padding: 60px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h2>👥 用户管理</h2>
+        <div class="nav-links">
+            <a href="{% url 'dashboard' %}">🖥️ 指挥大屏</a>
+            <a href="{% url 'projects' %}">📋 项目管理</a>
+            <a href="{% url 'users' %}" class="active">👥 用户管理</a>
+            <a href="{% url 'logout' %}">退出</a>
+        </div>
+    </div>
+    <div class="container">
+        <div class="page-layout">
+            <!-- 左侧树形目录 -->
+            <div class="tree-panel">
+                <h3>📁 项目 / 设备</h3>
+                <div id="tree-container">
+                    {% for p in projects %}
+                    <div class="tree-node project" onclick="selectProject({{ p.id }})">📂 {{ p.name }}</div>
+                    <div id="tree-project-{{ p.id }}" style="display:none;"></div>
+                    {% empty %}
+                    <div class="empty-state">暂无项目</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- 右侧详情 -->
+            <div class="detail-panel" id="detail-panel">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <h3 id="detail-title" style="margin:0;">👤 设备详情</h3>
+                </div>
+                <div id="detail-content" class="empty-state">请从左侧选择设备查看详情</div>
+                <div id="detail-form" style="display:none;">
+                    <input type="hidden" id="edit-device-id">
+                    <div class="form-group">
+                        <label>所属项目</label>
+                        <select id="edit-device-project">
+                            {% for p in projects %}
+                            <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>设备ID</label>
+                        <input type="text" id="edit-device-deviceid" placeholder="设备唯一ID">
+                    </div>
+                    <div class="form-group">
+                        <label>资产编码</label>
+                        <input type="text" id="edit-device-assetcode" placeholder="资产登记编码">
+                    </div>
+                    <div class="form-group">
+                        <label>民警姓名</label>
+                        <input type="text" id="edit-device-name" placeholder="民警姓名">
+                    </div>
+                    <div class="form-group">
+                        <label>年龄</label>
+                        <input type="number" id="edit-device-age" value="25" min="18" max="60">
+                    </div>
+                    <div class="form-group">
+                        <label>性别</label>
+                        <select id="edit-device-gender">
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>图标形状</label>
+                        <select id="edit-device-shape">
+                            <option value="circle">圆形</option>
+                            <option value="triangle">三角形</option>
+                            <option value="square">方形</option>
+                            <option value="diamond">菱形</option>
+                            <option value="pentagon">五边形</option>
+                            <option value="star">星形</option>
+                            <option value="hexagon">六边形</option>
+                            <option value="cross">十字形</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>图标颜色</label>
+                        <select id="edit-device-color">
+                            <option value="#1890FF">蓝色</option>
+                            <option value="#52c41a">绿色</option>
+                            <option value="#faad14">金色</option>
+                            <option value="#ff4d4f">红色</option>
+                            <option value="#722ed1">紫色</option>
+                            <option value="#13c2c2">青色</option>
+                        </select>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" id="btn-save" onclick="saveDevice()">💾 保存</button>
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top:20px;">
+                    <span style="font-size:11px;color:rgba(255,255,255,0.25);">手表开机即自动注册激活，管理员在此编辑信息或切换项目</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentProjectId = null;
+        let devicesCache = {};
+
+        async function selectProject(projectId) {
+            currentProjectId = projectId;
+            // 加载设备列表
+            try {
+                const resp = await fetch(`/api/devices/?project_id=${projectId}`);
+                const data = await resp.json();
+                devicesCache[projectId] = data.devices;
+                renderDeviceTree(projectId, data.devices);
+            } catch(e) { console.error(e); }
+        }
+
+        function renderDeviceTree(projectId, devices) {
+            const container = document.getElementById(`tree-project-${projectId}`);
+            container.style.display = 'block';
+            if (!devices.length) {
+                container.innerHTML = '<div style="padding:6px 24px;font-size:12px;color:rgba(255,255,255,0.3);">暂无设备</div>';
+            } else {
+                container.innerHTML = devices.map(d => `
+                    <div class="tree-node device ${d.is_online ? 'online' : 'offline'}" onclick="selectDevice(${d.id}, ${projectId})">
+                        ${d.officer_name} (${d.device_id})
+                        ${!d.is_online && d.offline_duration ? `<span style="color:#ff4d4f;font-size:11px;margin-left:6px;">${d.offline_duration}</span>` : ''}
+                    </div>
+                `).join('');
+            }
+            // 收起其他项目
+            document.querySelectorAll('[id^="tree-project-"]').forEach(el => {
+                if (el.id !== `tree-project-${projectId}`) el.style.display = 'none';
+            });
+        }
+
+        function selectDevice(deviceId, projectId) {
+            const devices = devicesCache[projectId] || [];
+            const device = devices.find(d => d.id === deviceId);
+            if (!device) return;
+            document.getElementById('detail-content').style.display = 'none';
+            document.getElementById('detail-form').style.display = 'block';
+            document.getElementById('edit-device-id').value = device.id;
+            document.getElementById('edit-device-project').value = projectId;
+            document.getElementById('edit-device-deviceid').value = device.device_id;
+            document.getElementById('edit-device-deviceid').readOnly = true;
+            document.getElementById('edit-device-assetcode').value = device.asset_code || '';
+            document.getElementById('edit-device-name').value = device.officer_name;
+            document.getElementById('edit-device-age').value = device.officer_age;
+            document.getElementById('edit-device-gender').value = device.officer_gender;
+            document.getElementById('edit-device-shape').value = device.marker_shape;
+            document.getElementById('edit-device-color').value = device.marker_color;
+
+            // 设备状态行
+            let statusHtml = '';
+            if (device.is_online) {
+                statusHtml = '<span style="color:#52c41a;">🟢 在线</span>';
+            } else {
+                statusHtml = '<span style="color:#ff4d4f;">⚫ 离线</span>';
+                if (device.offline_duration) {
+                    statusHtml += ` <span style="color:#ff7875;font-size:13px;margin-left:4px;">${device.offline_duration}</span>`;
+                }
+            }
+            if (device.last_report_time) {
+                statusHtml += ` <span style="color:rgba(255,255,255,0.3);font-size:11px;margin-left:12px;">最后上报: ${device.last_report_time}</span>`;
+            }
+            document.getElementById('detail-title').innerHTML = `👤 ${device.officer_name || device.device_id} - 设备详情 <span style="font-size:13px;margin-left:16px;">${statusHtml}</span>`;
+
+            document.getElementById('btn-save').textContent = '💾 保存';
+            document.getElementById('btn-save').className = 'btn btn-primary';
+            document.getElementById('btn-save').style.display = 'inline-block';
+        }
+
+        function resetForm() {
+            document.getElementById('edit-device-id').value = '';
+            document.getElementById('edit-device-deviceid').value = '';
+            document.getElementById('edit-device-deviceid').readOnly = true;
+            document.getElementById('edit-device-assetcode').value = '';
+            document.getElementById('edit-device-name').value = '';
+            document.getElementById('edit-device-age').value = '';
+            document.getElementById('edit-device-gender').value = '男';
+            document.getElementById('edit-device-shape').value = 'circle';
+            document.getElementById('edit-device-color').value = '#1890FF';
+            document.getElementById('detail-form').style.display = 'block';
+            document.getElementById('detail-content').style.display = 'none';
+            document.getElementById('detail-title').textContent = '📋 设备详情';
+            document.getElementById('btn-save').style.display = 'none';
+        }
+
+        async function saveDevice() {
+            const id = document.getElementById('edit-device-id').value;
+            const deviceId = document.getElementById('edit-device-deviceid').value;
+
+            if (!id && !deviceId) { alert('请填写设备ID'); return; }
+
+            const projectId = parseInt(document.getElementById('edit-device-project').value);
+            const ageVal = parseInt(document.getElementById('edit-device-age').value);
+
+            const body = {
+                project_id: isNaN(projectId) ? null : projectId,
+                device_id: deviceId,
+                asset_code: document.getElementById('edit-device-assetcode').value,
+                officer_name: document.getElementById('edit-device-name').value,
+                officer_age: isNaN(ageVal) ? null : ageVal,
+                officer_gender: document.getElementById('edit-device-gender').value,
+                marker_shape: document.getElementById('edit-device-shape').value,
+                marker_color: document.getElementById('edit-device-color').value,
+            };
+
+            const url = !id ? '/api/devices/create/' : `/api/devices/${id}/update/`;
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify(body),
+                });
+                alert(!id ? '手表已创建！' : '保存成功');
+                if (currentProjectId) selectProject(currentProjectId);
+                // 如果换了项目也刷新目标项目
+                if (projectId && projectId !== currentProjectId) selectProject(projectId);
+                resetForm();
+            } catch(e) { alert('保存失败'); }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                for (let cookie of document.cookie.split(';')) {
+                    cookie = cookie.trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // 页面初始化 — 自动展开第一个项目
+        (function() {
+            const firstProject = document.querySelector('.tree-node.project');
+            if (firstProject) firstProject.click();
+        })();
+    </script>
+</body>
+</html>
