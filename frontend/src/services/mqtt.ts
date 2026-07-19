@@ -11,12 +11,14 @@ const TOPICS = {
   vital: 'watch/+/vital',
   alert: 'watch/+/alert',
   status: 'watch/+/status',
+  coreTemp: 'watch/+/core-temp',
 };
 
 export type OnVitalData = (data: VitalData) => void;
 export type OnAlert = (data: AlertPopupData) => void;
 export type OnAlertRecord = (record: AlertRecord) => void;
 export type OnStatusChange = (deviceId: string, online: boolean) => void;
+export type OnCoreTemp = (deviceId: string, coreTemp: number) => void;
 
 class MqttService {
   private client: MqttClient | null = null;
@@ -29,6 +31,7 @@ class MqttService {
   private onAlertCallbacks: OnAlert[] = [];
   private onAlertRecordCallbacks: OnAlertRecord[] = [];
   private onStatusCallbacks: OnStatusChange[] = [];
+  private onCoreTempCallbacks: OnCoreTemp[] = [];
 
   connect(clientId?: string) {
     if (this.client) return this;
@@ -129,8 +132,15 @@ class MqttService {
         this.lastSeen.delete(deviceId);
         this.onStatusCallbacks.forEach((callback) => callback(deviceId, false));
       }
+      return;
     }
-  }
+
+    if (topic.endsWith('/core-temp')) {
+      const coreTemp = this.validNumber(data.coreTemperature, 30, 45);
+      if (coreTemp == null) return;
+      this.onCoreTempCallbacks.forEach((callback) => callback(deviceId, coreTemp));
+      return;
+    }
 
   private validTimestamp(value: unknown): number {
     const timestamp = Number(value);
@@ -207,6 +217,11 @@ class MqttService {
   onStatus(callback: OnStatusChange) {
     this.onStatusCallbacks.push(callback);
     return () => { this.onStatusCallbacks = this.onStatusCallbacks.filter((item) => item !== callback); };
+  }
+
+  onCoreTemp(callback: OnCoreTemp) {
+    this.onCoreTempCallbacks.push(callback);
+    return () => { this.onCoreTempCallbacks = this.onCoreTempCallbacks.filter((item) => item !== callback); };
   }
 
   disconnect() {

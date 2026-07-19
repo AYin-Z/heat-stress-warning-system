@@ -39,6 +39,7 @@ type Action =
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'REGISTER_OFFICER'; payload: Officer }
   | { type: 'CLEAR_RECORDS'; before?: number }; // 清除指定时间前的记录
+  | { type: 'CORE_TEMP'; payload: { deviceId: string; coreTemp: number } };
 
 // ============================================================
 // Helper
@@ -144,6 +145,18 @@ function reducer(state: AppState, action: Action): AppState {
           ? state.alertRecords.filter((r) => r.timestamp > action.before!)
           : [],
       };
+
+    case 'CORE_TEMP': {
+      const { deviceId, coreTemp } = action.payload;
+      const existing = state.devices[deviceId];
+      if (!existing) return state;
+      const updated = { ...existing, coreTemp };
+      const riskLevel = getRiskLevel(updated);
+      return {
+        ...state,
+        devices: { ...state.devices, [deviceId]: { ...updated, riskLevel } },
+      };
+    }
 
     default:
       return state;

@@ -27,3 +27,4 @@ keystore/
 .env
 .env.*
 !.env.example
+archives/

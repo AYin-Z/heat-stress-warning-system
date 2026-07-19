@@ -71,6 +71,13 @@ function AppInner() {
       })
     );
 
+    // 订阅核心温度（从 Bridge 推算后发布）
+    cleanup.push(
+      mqttService.onCoreTemp((deviceId: string, coreTemp: number) => {
+        dispatch({ type: 'CORE_TEMP', payload: { deviceId, coreTemp } });
+      })
+    );
+
     return () => {
       cleanup.forEach((fn) => fn());
       mqttService.disconnect();

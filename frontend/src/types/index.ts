@@ -125,6 +125,7 @@ export interface MqttConfig {
     vital: string;          // 生理数据 topic
     alert: string;          // 预警 topic
     status: string;         // 设备在线状态 topic
+    coreTemp: string;       // 核心温度 topic (Bridge推算)
   };
 }
 

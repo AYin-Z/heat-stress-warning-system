@@ -29,6 +29,8 @@ MQTT_TOPIC_STATUS = os.environ.get("BRIDGE_MQTT_TOPIC_STATUS", "watch/+/status")
 MQTT_TOPIC_BIND = os.environ.get("BRIDGE_MQTT_TOPIC_BIND", "watch/+/bind")
 MQTT_ALERT_TOPIC_TPL = "watch/{device_id}/alert"
 MQTT_TIME_TOPIC_TPL = "watch/{device_id}/time"
+MQTT_CORE_TEMP_TOPIC_TPL = "watch/{device_id}/core-temp"
+MQTT_BIND_RESPONSE_TOPIC_TPL = "watch/{device_id}/bind/response"
 
 API_BASE = os.environ.get("BRIDGE_API_BASE", "http://101.201.29.99:8001")
 API_TIMEOUT = float(os.environ.get("BRIDGE_API_TIMEOUT", "6"))
@@ -181,9 +183,17 @@ class CoreTempEstimator:
 
     def _estimate(self, mqtt_id: str, payload: dict[str, Any]) -> Optional[float]:
         try:
+            # 提取心率数组和最新时间戳（模型 API 期望的格式）
+            heart_rates = [s["heart_rate"] for s in payload.get("samples", []) if "heart_rate" in s][:20]
+            timestamp = payload["samples"][-1]["timestamp"] if payload.get("samples") else datetime.now(tz=timezone.utc).isoformat()
+            body = {
+                "device_id": mqtt_id,
+                "heart_rates": heart_rates,
+                "timestamp": timestamp,
+            }
             resp = requests.post(
                 CORE_TEMP_API_URL,
-                json=payload,
+                json=body,
                 headers={"Content-Type": "application/json"},
                 timeout=API_TIMEOUT,
             )
@@ -194,9 +204,9 @@ class CoreTempEstimator:
             if not isinstance(data, dict) or not data.get("ok"):
                 log.warning("[%s] Core-temp API returned ok=false or invalid: %s", mqtt_id, resp.text[:200])
                 return self._latest.get(mqtt_id)
-            temp = data.get("core_temperature")
+            temp = data.get("current_core_temperature") or data.get("core_temperature")
             if not isinstance(temp, (int, float)):
-                log.warning("[%s] Core-temp API missing core_temperature field", mqtt_id)
+                log.warning("[%s] Core-temp API missing temperature field", mqtt_id)
                 return self._latest.get(mqtt_id)
             log.info("[%s] Core-temp estimated: %.2f °C (source=%s, model=%s)",
                      mqtt_id, temp,
@@ -419,6 +429,7 @@ def forward_bind(mqtt_id: str, payload: dict[str, Any]) -> None:
         response = api.register_device(hardware_serial, firmware_version)
         if not response.get("ok"):
             log.error("[%s] Bind failed: %s", mqtt_id, response)
+            publish_bind_response(mqtt_id, False, response.get("message", "绑定失败"))
             return
         registry.update(
             mqtt_id,
@@ -434,6 +445,7 @@ def forward_bind(mqtt_id: str, payload: dict[str, Any]) -> None:
             firmware_version,
             response.get("bind_status", "unknown"),
         )
+        publish_bind_response(mqtt_id, True, "绑定成功")
 
 
 def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
@@ -456,6 +468,8 @@ def forward_vital(mqtt_id: str, payload: dict[str, Any]) -> None:
     )
     if estimated_temp is not None:
         core_temperature = estimated_temp
+        # 发布到 MQTT，前端订阅显示实时核心温度
+        publish_core_temp(mqtt_id, estimated_temp)
 
     has_any_vital = (
         heart_rate is not None
@@ -562,6 +576,41 @@ def publish_alert(mqtt_id: str, alert: dict[str, Any]) -> bool:
         log.warning("[%s] Alert MQTT confirmation timed out", mqtt_id)
         return False
     log.warning("[%s] Alert published: risk=%s", mqtt_id, risk_level)
+    return True
+
+
+def publish_core_temp(mqtt_id: str, core_temperature: float) -> bool:
+    """发布核心温度到 MQTT，供前端订阅。"""
+    topic = MQTT_CORE_TEMP_TOPIC_TPL.format(device_id=mqtt_id)
+    payload = json.dumps({
+        "deviceId": mqtt_id,
+        "coreTemperature": core_temperature,
+        "timestamp": int(time.time() * 1000),
+    }, ensure_ascii=False)
+    info = mqtt_client.publish(topic, payload, qos=1, retain=False)
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        log.warning("[%s] Core-temp MQTT publish failed: rc=%s", mqtt_id, info.rc)
+        return False
+    try:
+        info.wait_for_publish(timeout=MQTT_PUBLISH_TIMEOUT)
+    except (RuntimeError, ValueError):
+        pass
+    return True
+
+
+def publish_bind_response(mqtt_id: str, ok: bool, message: str) -> bool:
+    """发布绑定结果回执到 MQTT，供手表接收。"""
+    topic = MQTT_BIND_RESPONSE_TOPIC_TPL.format(device_id=mqtt_id)
+    payload = json.dumps({
+        "ok": ok,
+        "deviceId": mqtt_id,
+        "message": message,
+        "timestamp": int(time.time() * 1000),
+    }, ensure_ascii=False)
+    info = mqtt_client.publish(topic, payload, qos=1, retain=False)
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        log.warning("[%s] Bind-response MQTT publish failed: rc=%s", mqtt_id, info.rc)
+        return False
     return True
 
 
