@@ -48,30 +48,21 @@
 ## 数据流
 
 ```
-                            ┌─ 中继服务器 (39.105.86.77) ──────────────┐
-                            │  EMQX (localhost:1883)                    │
-A80 手表 ──MQTT(TCP)──▶     │     │                                     │
-                            │  ┌──┴──┐  订阅: vital/status/bind        │
-                            │  │bridge├── 发布: alert/time/core-temp   │
-                            │  └─────┘        bind/response            │
-                            │     │                                     │
-                            │  ┌──┴──────────┐                          │
-                            │  │ Django 大屏  │── MQTT(TCP) 订阅 topic  │
-                            │  │ (8001)       │                         │
-                            │  └─────────────┘                          │
-                            └─────────┬─────────────────────────────────┘
-                                      │ HTTP
-                                      ▼
-                              模型服务 (20.205.12.160:8001)
-                              (核心温度推算)
+手表端 ──MQTT──▶ 中继服务器(EMQX做消息分发)
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+                    ▼                   ▼
+                预测模型             服务器(前端大屏)
+             20次心率→核心温度       订阅topic消费数据
 ```
 
 | 链路 | 协议 | 说明 |
 |------|------|------|
-| 手表 → EMQX | MQTT TCP | 15s vital + 60s status + LWT 遗嘱 / 按需 bind |
-| 中继 → EMQX | MQTT TCP | 订阅 vital/status/bind，发布 alert/time/core-temp/bind-response |
-| 大屏 → EMQX | MQTT TCP | 订阅 bind/vital/status/alert（Django mqtt_client） |
-| 中继 → 模型 | HTTP JSON | 20 分钟心率 → 核心温度推算 |
+| 手表 → 中继 | MQTT TCP | 15s vital + 60s status + LWT 遗嘱 / 按需 bind |
+| 中继 → 模型 | HTTP JSON | 20 次心率 → 预测核心温度 |
+| 模型 → 中继 | HTTP JSON | 返回推算的核心温度 |
+| 中继 → 大屏 | MQTT TCP | 订阅 bind/vital/status/alert/core-temp |
 
 ## 快速导航
 
