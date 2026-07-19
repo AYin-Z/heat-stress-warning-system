@@ -13,25 +13,20 @@
 │   ├── app/src/               Android 源码（Kotlin）
 │   └── keystore/              平台签名证书
 │
-├── frontend/                  ← 大屏端（React 实时监控面板）
-│   ├── src/components/        6 个 UI 组件
-│   ├── src/services/mqtt.ts   MQTT WebSocket 客户端
-│   ├── src/store/             全局状态（Context + Reducer）
-│   └── src/types/             类型定义
+├── frontend/                  ← 大屏/后端（Django 指挥中心）
+│   ├── core/                  Django 应用（API + MQTT 客户端）
+│   ├── templates/             大屏 HTML 页面
+│   ├── static/                前端 JS/CSS
+│   ├── data/gis/              行政区划 GIS 源数据
+│   ├── docs/                  API 文档 + 部署指南
+│   └── deploy.sh              一键部署脚本
 │
 ├── bridge/                    ← 中继服务器（MQTT ↔ HTTP 桥接）
-│   ├── bridge.py              主程序（596 行 Python）
+│   ├── bridge.py              主程序
 │   ├── test_bridge.py         单元测试
 │   └── heatstress-bridge.service  systemd 部署文件
 │
-├── model/                     ← 模型端（核心温度推算，待实现）
-│
-├── docs/                      ← 文档
-│   ├── api/                    API 文档（大屏同学从这里开始）
-│   │   ├── mqtt-api.md         大屏 ↔ MQTT 接口
-│   │   └── bridge-http-api.md  中继 ↔ 后端 HTTP 接口
-│   ├── product/                产品需求与硬件文档
-│   └── reports/                测试报告
+├── model/                     ← 模型端（核心温度推算）
 │
 └── .github/workflows/         CI（三端构建 + 测试）
 ```
@@ -42,11 +37,11 @@
 
 | 角色 | 先读 |
 |---|---|
-| 🖥 **做大屏的同学** | → [`docs/api/mqtt-api.md`](docs/api/mqtt-api.md)（连接 MQTT 就能拿到数据） |
-| 🔧 **做后端的同学** | → [`docs/api/bridge-http-api.md`](docs/api/bridge-http-api.md)（实现 watch API） |
+| 🖥 **大屏/后端（前后端一体 Django）** | → [`frontend/docs/watch-api.md`](frontend/docs/watch-api.md) + [`frontend/docs/deploy-guide.md`](frontend/docs/deploy-guide.md) |
+| 🔧 **中继桥接** | → [`bridge/README.md`](bridge/README.md) |
 | 🤖 **做模型的同学** | → [`model/README.md`](model/README.md) |
-| 📱 **做移动端的同学** | → `mobile/` 源码 + [测试报告](docs/reports/REAL_DEVICE_TEST_REPORT.md) |
-| 🚀 **部署运维** | → [`bridge/heatstress-bridge.service`](bridge/heatstress-bridge.service) + 下方架构图 |
+| 📱 **做移动端的同学** | → `watch-app/` 源码 |
+| 🚀 **部署运维** | → [`bridge/heatstress-bridge.service`](bridge/heatstress-bridge.service) + [`frontend/deploy.sh`](frontend/deploy.sh) |
 
 ---
 
