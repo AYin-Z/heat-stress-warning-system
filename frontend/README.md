@@ -171,6 +171,8 @@ bash deploy.sh 8001 <MQTT_BROKER_IP>
 ├── static/
 │   ├── css/projects.css
 │   └── js/projects.js
+├── data/
+│   └── gis/                       # 行政区划 GIS 源文件 (65MB)
 ├── docs/
 │   ├── watch-api.md               # API 接口文档
 │   └── deploy-guide.md            # 部署指南
