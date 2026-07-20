@@ -156,13 +156,14 @@ def api_stats(request):
         devices = devices.filter(project_id=project_id)
 
     buffered_geoms, _ = _load_jurisdiction_geoms(current_project)
-    filtered = [d for d in devices if _device_in_jurisdiction(d, buffered_geoms) and d.health_data.exists()]
+    filtered = [d for d in devices if _device_in_jurisdiction(d, buffered_geoms)]
     total = len(filtered)
     online = sum(1 for d in filtered if is_device_effectively_online(d))
-    offline = total - online
 
     normal_count = warning_count = high_risk_count = monitoring_count = 0
     unavailable_count = never_reported_count = 0
+    offline_count = 0
+    awaiting_data_count = 0
 
     for device in filtered:
         risk_level, _ = get_device_risk_level(device)
@@ -178,6 +179,11 @@ def api_stats(request):
             unavailable_count += 1
         elif risk_level == 'never_reported':
             never_reported_count += 1
+        elif risk_level == 'offline':
+            offline_count += 1
+        elif risk_level == 'awaiting_data':
+            awaiting_data_count += 1
+        # http_shell — HTTP注册空壳，不在大屏统计范围内
 
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_alerts = Alert.objects.filter(device__project_id=project_id, created_at__gte=today_start).count() if project_id else 0
@@ -185,10 +191,11 @@ def api_stats(request):
     return JsonResponse({
         'total_devices': total,
         'online_devices': online,
-        'offline_devices': offline,
+        'offline_devices': offline_count,
         'monitoring_devices': monitoring_count,
         'unavailable_devices': unavailable_count,
         'never_reported_devices': never_reported_count,
+        'awaiting_data_devices': awaiting_data_count,
         'today_alerts': today_alerts,
         'risk_stats': [
             {'name': '正常', 'value': normal_count, 'color': '#52c41a'},
@@ -196,8 +203,8 @@ def api_stats(request):
             {'name': '高风险预警', 'value': high_risk_count, 'color': '#ff4d4f'},
             {'name': '监测中', 'value': monitoring_count, 'color': '#1890FF'},
             {'name': '数据不可用', 'value': unavailable_count, 'color': '#5c7c8a'},
-            {'name': '从未上报', 'value': never_reported_count, 'color': '#8c8c8c'},
-            {'name': '离线', 'value': offline, 'color': '#bfbfbf'},
+            {'name': '离线', 'value': offline_count, 'color': '#bfbfbf'},
+            {'name': '等待首次数据', 'value': awaiting_data_count, 'color': '#fa8c16'},
         ]
     })
 

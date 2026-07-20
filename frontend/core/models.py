@@ -22,21 +22,39 @@ def is_device_effectively_online(device):
     return delta <= ONLINE_TIMEOUT_SECONDS
 
 
+def is_awaiting_first_data(device):
+    """MQTT已连接但尚未上报健康数据 — 设备活着，持续监测中。
+    区分于 HTTP 注册空壳：本函数要求 last_report_time 不为空（说明 MQTT 有消息过来）。
+    """
+    return not device.health_data.exists() and device.last_report_time is not None
+
+
+def is_http_registration_shell(device):
+    """HTTP 注册接口产生的空壳 — 从未通过 MQTT 上报过任何消息，纯注册记录。
+    last_report_time 为空、无健康数据、无位置轨迹。
+    """
+    return not device.health_data.exists() and device.last_report_time is None
+
+
 def get_device_risk_level(device):
     """
     统一设备风险/状态分类 — 以中继服务器上报字段为准。
     所有 API 和页面统一调用此函数，不各自硬编码判断逻辑。
 
     返回: (risk_level: str, risk_text: str)
-        risk_level: 'normal' | 'warning' | 'high_risk' | 'monitoring' | 'unavailable' | 'never_reported' | 'offline'
+        risk_level: 'normal' | 'warning' | 'high_risk' | 'monitoring' | 'unavailable' | 'never_reported' | 'offline' | 'http_shell'
     """
-    # 离线（含超时：5分钟无上报视为离线）
+    # HTTP 注册空壳 — 从未连接过 MQTT，纯注册记录，不纳入大屏统计
+    if is_http_registration_shell(device):
+        return ('http_shell', 'HTTP注册空壳')
+
+    # MQTT 已连接但从未上报健康数据 — 等待首次数据（持续监测，一旦上报自动切换状态）
+    if is_awaiting_first_data(device):
+        return ('awaiting_data', '等待首次数据')
+
+    # 离线（含超时：90秒无上报视为离线）
     if not is_device_effectively_online(device):
         return ('offline', '离线')
-
-    # 从未上报过任何数据
-    if device.last_report_time is None:
-        return ('never_reported', '从未上报')
 
     latest = device.health_data.first()
 
