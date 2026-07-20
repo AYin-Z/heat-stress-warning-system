@@ -88,21 +88,22 @@
             position: absolute;
             top: 50%; left: 352px;
             transform: translateY(-50%);
-            width: 22px; height: 60px;
-            background: rgba(16,24,40,0.85);
-            border: 1px solid rgba(255,255,255,0.1);
+            width: 24px; height: 60px;
+            background: rgba(16,24,40,0.9);
+            border: 1px solid rgba(255,255,255,0.12);
             border-left: none;
             border-radius: 0 6px 6px 0;
-            color: rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.55);
             cursor: pointer;
             z-index: 51;
-            font-size: 11px;
+            font-size: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: left 0.35s ease, border-radius 0.35s ease;
+            transition: left 0.35s ease;
         }
-        #left-panel.collapsed + #left-toggle { left: 12px; border-radius: 6px; border-left: 1px solid rgba(255,255,255,0.1); }
+        #left-toggle:hover { color: #fff; background: rgba(24,144,255,0.2); }
+        #left-toggle.collapsed { left: 12px; border-radius: 6px; border-left: 1px solid rgba(255,255,255,0.12); }
         .panel-box {
             background: rgba(16,24,40,0.85);
             border: 1px solid rgba(255,255,255,0.08);
@@ -212,15 +213,30 @@
         }
         #right-panel.collapsed { width: 40px; }
         #right-panel.collapsed .panel-header { justify-content: center; padding: 14px 8px; }
-        #right-panel.collapsed #sidebar-toggle { padding: 2px 0; }
         #right-panel.collapsed #alert-list,
         #right-panel.collapsed .panel-header-text,
         #right-panel.collapsed .panel-header-count { display: none; }
-        #sidebar-toggle {
-            background: none; border: none; color: rgba(255,255,255,0.5);
-            cursor: pointer; font-size: 16px; padding: 2px 6px; transition: color 0.3s;
+        /* 右侧面板折叠按钮 — 悬浮在左边缘中间 */
+        #right-toggle {
+            position: absolute;
+            top: 50%; left: -24px;
+            transform: translateY(-50%);
+            width: 24px; height: 60px;
+            background: rgba(16,24,40,0.9);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-right: none;
+            border-radius: 6px 0 0 6px;
+            color: rgba(255,255,255,0.55);
+            cursor: pointer;
+            z-index: 51;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: left 0.3s ease, border-radius 0.3s ease;
         }
-        #sidebar-toggle:hover { color: #fff; }
+        #right-toggle:hover { color: #fff; background: rgba(24,144,255,0.2); }
+        #right-panel.collapsed #right-toggle { left: -24px; border-radius: 6px 0 0 6px; }
         #right-panel .panel-header {
             padding: 14px 16px;
             border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -399,8 +415,8 @@
         <div class="panel-title">📈 风险概况</div>
         <div id="pie-chart"></div>
     </div>
-    <div id="left-toggle" onclick="toggleLeftPanel()" title="收起/展开面板">◀</div>
 </div>
+<div id="left-toggle" onclick="toggleLeftPanel()" title="收起/展开面板">◀</div>
 
 <!-- 地图主体 -->
 <div id="map-container">
@@ -418,10 +434,10 @@
 
 <!-- 右侧历史记录 -->
 <div id="right-panel">
+    <div id="right-toggle" onclick="toggleSidebar()" title="折叠/展开">◀</div>
     <div class="panel-header">
         <span class="panel-header-text">📋 预警历史</span>
         <span class="badge badge-red panel-header-count" id="alert-badge" style="display:none;">0</span>
-        <button id="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开">◀</button>
     </div>
     <div id="alert-list">
         <div style="text-align:center;color:rgba(255,255,255,0.3);padding:40px 0;font-size:13px;">暂无预警记录</div>
@@ -914,6 +930,7 @@
         const panel = document.getElementById('left-panel');
         const btn = document.getElementById('left-toggle');
         const isCollapsed = panel.classList.toggle('collapsed');
+        btn.classList.toggle('collapsed', isCollapsed);
         btn.textContent = isCollapsed ? '▶' : '◀';
         // 折叠后地图容器左边界扩张
         const mapContainer = document.getElementById('map-container');
@@ -928,12 +945,12 @@
 
     function toggleSidebar() {
         const panel = document.getElementById('right-panel');
-        const btn = document.getElementById('sidebar-toggle');
+        const btn = document.getElementById('right-toggle');
         const isCollapsed = panel.classList.toggle('collapsed');
         btn.textContent = isCollapsed ? '▶' : '◀';
         // 折叠后地图容器右边界扩张
         const mapContainer = document.getElementById('map-container');
-        mapContainer.style.right = isCollapsed ? '64px' : '320px';
+        mapContainer.style.right = isCollapsed ? '52px' : '320px';
         // 通知高德地图 resize
         setTimeout(() => { if (map) map.resize(); }, 350);
     }
