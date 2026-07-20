@@ -197,8 +197,8 @@ def api_stats(request):
             {'name': '普通预警', 'value': warning_count, 'color': '#fa8c16'},
             {'name': '高风险预警', 'value': high_risk_count, 'color': '#ff4d4f'},
             {'name': '监测中', 'value': monitoring_count, 'color': '#1890FF'},
-            {'name': '数据不可用', 'value': unavailable_count, 'color': '#8c8c8c'},
-            {'name': '离线', 'value': offline_count, 'color': '#595959'},
+            {'name': '数据不可用', 'value': unavailable_count, 'color': '#ffffff'},
+            {'name': '离线', 'value': offline_count, 'color': '#666666'},
             {'name': '等待首次数据', 'value': awaiting_data_count, 'color': '#722ed1'},
         ]
     })
