@@ -665,7 +665,7 @@
                 itemStyle: { borderRadius: 4, borderColor: 'rgba(10,14,23,0.8)', borderWidth: 3 },
                 label: { show: true, position: 'outside', color: 'rgba(255,255,255,0.6)', fontSize: 11,
                     formatter: '{b}\n{d}%' },
-                data: stats.map(s => ({ name: s.name, value: s.value, itemStyle: { color: s.color } })),
+                data: stats.map(s => ({ name: s.name === '等待首次数据' ? '等待首\n次数据' : s.name, value: s.value, itemStyle: { color: s.color } })),
             }],
         });
     }
