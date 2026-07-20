@@ -316,10 +316,14 @@ def process_status(device_id: str, payload: dict[str, Any]) -> None:
     battery_level = optional_int(payload.get('batteryLevel'), 0, 100)
 
     device.is_online = is_online
-    device.last_report_time = django_timezone.now()
+    update_fields = ['is_online']
+    # last_report_time 以真实数据上报为准，status 消息仅在上线时更新
+    if is_online:
+        device.last_report_time = django_timezone.now()
+        update_fields.append('last_report_time')
     if battery_level is not None:
         device.battery_level = battery_level
-    update_fields = ['is_online', 'last_report_time', 'battery_level']
+        update_fields.append('battery_level')
     if auto_activated:
         update_fields.append('bind_status')
     device.save(update_fields=update_fields)

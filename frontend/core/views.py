@@ -156,7 +156,7 @@ def api_stats(request):
         devices = devices.filter(project_id=project_id)
 
     buffered_geoms, _ = _load_jurisdiction_geoms(current_project)
-    filtered = [d for d in devices if _device_in_jurisdiction(d, buffered_geoms)]
+    filtered = [d for d in devices if _device_in_jurisdiction(d, buffered_geoms) and d.health_data.exists()]
     total = len(filtered)
     online = sum(1 for d in filtered if is_device_effectively_online(d))
     offline = total - online
