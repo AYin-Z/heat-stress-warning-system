@@ -119,9 +119,9 @@
         .stat-label { font-size: 13px; color: rgba(255,255,255,0.55); }
         .stat-value { font-size: 28px; font-weight: 700; }
         .stat-online { color: #52c41a; }
-        .stat-offline { color: #bfbfbf; }
+        .stat-offline { color: #595959; }
         .stat-monitoring { color: #1890FF; }
-        .stat-unavailable { color: #5c7c8a; }
+        .stat-unavailable { color: #8c8c8c; }
         .stat-alert { color: #ff4d4f; }
         .stat-unit { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.4); margin-left: 4px; }
 
@@ -361,8 +361,8 @@
             <span class="stat-value stat-unavailable" id="unavailable-count">0<span class="stat-unit">台</span></span>
         </div>
         <div class="stat-row">
-            <span class="stat-label">从未上报</span>
-            <span class="stat-value" style="color:#8c8c8c;" id="never-reported-count">0<span class="stat-unit">台</span></span>
+            <span class="stat-label">等待首次数据</span>
+            <span class="stat-value" style="color:#722ed1;" id="awaiting-data-count">0<span class="stat-unit">台</span></span>
         </div>
         <div class="stat-row">
             <span class="stat-label">离线设备</span>
@@ -384,12 +384,12 @@
     <div id="amap"></div>
     <div class="map-legend">
         <span class="legend-item"><span class="legend-dot" style="background:#52c41a;"></span> 正常</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#faad14;"></span> 预警</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#fa8c16;"></span> 预警</span>
         <span class="legend-item"><span class="legend-dot" style="background:#ff4d4f;"></span> 高风险</span>
         <span class="legend-item"><span class="legend-dot" style="background:#1890FF;"></span> 监测中</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#5c7c8a;"></span> 数据不可用</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#8c8c8c;"></span> 从未上报</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#bfbfbf;"></span> 离线</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#8c8c8c;"></span> 数据不可用</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#595959;"></span> 离线</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#722ed1;"></span> 等待首次数据</span>
     </div>
 </div>
 
@@ -458,7 +458,7 @@
     let alertPopupTimer = null;
     let detailMap = null;
     let jurisdictionPolygons = [];
-    const RISK_COLORS = { normal: '#52c41a', warning: '#faad14', high_risk: '#ff4d4f', monitoring: '#1890FF', unavailable: '#5c7c8a', never_reported: '#8c8c8c', offline: '#bfbfbf' };
+    const RISK_COLORS = { normal: '#52c41a', warning: '#fa8c16', high_risk: '#ff4d4f', monitoring: '#1890FF', unavailable: '#8c8c8c', offline: '#595959', awaiting_data: '#722ed1' };
     // 头像标记生成函数 - 白底圆形头像 + 彩色风险环
     function createAvatarMarker(color) {
         return `<div style="
@@ -630,7 +630,7 @@
             document.getElementById('monitoring-count').innerHTML = (data.monitoring_devices || 0) + '<span class="stat-unit">台</span>';
             document.getElementById('unavailable-count').innerHTML = (data.unavailable_devices || 0) + '<span class="stat-unit">台</span>';
             document.getElementById('unavailable-count').innerHTML = (data.unavailable_devices || 0) + '<span class="stat-unit">台</span>';
-            document.getElementById('never-reported-count').innerHTML = (data.never_reported_devices || 0) + '<span class="stat-unit">台</span>';
+            document.getElementById('awaiting-data-count').innerHTML = (data.awaiting_data_devices || 0) + '<span class="stat-unit">台</span>';
             document.getElementById('offline-count').innerHTML = data.offline_devices + '<span class="stat-unit">台</span>';
             const todayAlerts = data.today_alerts || 0;
             document.getElementById('today-alert-count').innerHTML = todayAlerts + '<span class="stat-unit">条</span>';

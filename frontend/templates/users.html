@@ -206,14 +206,19 @@
             document.getElementById('edit-device-age').value = device.officer_age;
             document.getElementById('edit-device-gender').value = device.officer_gender;
             // 设备状态行
+            const RISK_COLORS = { normal: '#52c41a', warning: '#fa8c16', high_risk: '#ff4d4f', monitoring: '#1890FF', unavailable: '#8c8c8c', offline: '#595959', awaiting_data: '#722ed1' };
             let statusHtml = '';
             if (device.is_online) {
                 statusHtml = '<span style="color:#52c41a;">🟢 在线</span>';
             } else {
-                statusHtml = '<span style="color:#ff4d4f;">⚫ 离线</span>';
+                statusHtml = '<span style="color:#595959;">⚫ 离线</span>';
                 if (device.offline_duration) {
                     statusHtml += ` <span style="color:#ff7875;font-size:13px;margin-left:4px;">${device.offline_duration}</span>`;
                 }
+            }
+            if (device.risk_text) {
+                const rc = RISK_COLORS[device.risk_level] || '#8c8c8c';
+                statusHtml += ` <span style=\"color:${rc};font-size:13px;margin-left:8px;\">[${device.risk_text}]</span>`;
             }
             if (device.last_report_time) {
                 statusHtml += ` <span style="color:rgba(255,255,255,0.3);font-size:11px;margin-left:12px;">最后上报: ${device.last_report_time}</span>`;

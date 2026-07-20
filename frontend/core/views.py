@@ -161,9 +161,7 @@ def api_stats(request):
     online = sum(1 for d in filtered if is_device_effectively_online(d))
 
     normal_count = warning_count = high_risk_count = monitoring_count = 0
-    unavailable_count = never_reported_count = 0
-    offline_count = 0
-    awaiting_data_count = 0
+    unavailable_count = offline_count = awaiting_data_count = 0
 
     for device in filtered:
         risk_level, _ = get_device_risk_level(device)
@@ -177,8 +175,6 @@ def api_stats(request):
             monitoring_count += 1
         elif risk_level == 'unavailable':
             unavailable_count += 1
-        elif risk_level == 'never_reported':
-            never_reported_count += 1
         elif risk_level == 'offline':
             offline_count += 1
         elif risk_level == 'awaiting_data':
@@ -194,17 +190,16 @@ def api_stats(request):
         'offline_devices': offline_count,
         'monitoring_devices': monitoring_count,
         'unavailable_devices': unavailable_count,
-        'never_reported_devices': never_reported_count,
         'awaiting_data_devices': awaiting_data_count,
         'today_alerts': today_alerts,
         'risk_stats': [
             {'name': '正常', 'value': normal_count, 'color': '#52c41a'},
-            {'name': '普通预警', 'value': warning_count, 'color': '#faad14'},
+            {'name': '普通预警', 'value': warning_count, 'color': '#fa8c16'},
             {'name': '高风险预警', 'value': high_risk_count, 'color': '#ff4d4f'},
             {'name': '监测中', 'value': monitoring_count, 'color': '#1890FF'},
-            {'name': '数据不可用', 'value': unavailable_count, 'color': '#5c7c8a'},
-            {'name': '离线', 'value': offline_count, 'color': '#bfbfbf'},
-            {'name': '等待首次数据', 'value': awaiting_data_count, 'color': '#fa8c16'},
+            {'name': '数据不可用', 'value': unavailable_count, 'color': '#8c8c8c'},
+            {'name': '离线', 'value': offline_count, 'color': '#595959'},
+            {'name': '等待首次数据', 'value': awaiting_data_count, 'color': '#722ed1'},
         ]
     })
 

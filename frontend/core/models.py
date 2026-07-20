@@ -42,7 +42,7 @@ def get_device_risk_level(device):
     所有 API 和页面统一调用此函数，不各自硬编码判断逻辑。
 
     返回: (risk_level: str, risk_text: str)
-        risk_level: 'normal' | 'warning' | 'high_risk' | 'monitoring' | 'unavailable' | 'never_reported' | 'offline' | 'http_shell'
+        risk_level: 'normal' | 'warning' | 'high_risk' | 'monitoring' | 'unavailable' | 'offline' | 'awaiting_data' | 'http_shell'
     """
     # HTTP 注册空壳 — 从未连接过 MQTT，纯注册记录，不纳入大屏统计
     if is_http_registration_shell(device):
