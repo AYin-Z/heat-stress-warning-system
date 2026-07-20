@@ -17,6 +17,7 @@ from django.conf import settings
 
 from .models import (Project, Device, HealthData, Alert, DeviceLocation, Region,
                              get_device_risk_level, is_device_effectively_online,
+                             is_http_registration_shell,
                              TEMP_WARNING_THRESHOLD, TEMP_NORMAL_WARNING, ONLINE_TIMEOUT_SECONDS)
 from .watch_forward import forward_core_temperature
 
@@ -228,8 +229,8 @@ def api_devices(request):
         if not _device_in_jurisdiction(device, buffered_geoms):
             continue
 
-        # 过滤空壳设备（HTTP注册产生，无健康数据）
-        if not device.health_data.exists():
+        # 过滤 HTTP 注册空壳（从未连接 MQTT）；等待首次数据的有 MQTT 连接，保留
+        if is_http_registration_shell(device):
             continue
 
         latest_health = device.health_data.first()
@@ -649,8 +650,8 @@ def api_project_users(request, project_id):
     for d in devices:
         if not _device_in_jurisdiction(d, buffered_geoms):
             continue
-        # 过滤空壳设备（无健康数据）
-        if not d.health_data.exists():
+        # 过滤 HTTP 注册空壳（从未连接 MQTT）；等待首次数据的保留
+        if is_http_registration_shell(d):
             continue
         data.append({
             'id': d.id,
