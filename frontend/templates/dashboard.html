@@ -81,7 +81,28 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            transition: left 0.35s ease;
         }
+        #left-panel.collapsed { left: -340px; }
+        #left-toggle {
+            position: absolute;
+            top: 50%; left: 352px;
+            transform: translateY(-50%);
+            width: 22px; height: 60px;
+            background: rgba(16,24,40,0.85);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: none;
+            border-radius: 0 6px 6px 0;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            z-index: 51;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: left 0.35s ease, border-radius 0.35s ease;
+        }
+        #left-panel.collapsed + #left-toggle { left: 12px; border-radius: 6px; border-left: 1px solid rgba(255,255,255,0.1); }
         .panel-box {
             background: rgba(16,24,40,0.85);
             border: 1px solid rgba(255,255,255,0.08);
@@ -99,11 +120,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            cursor: pointer;
-            user-select: none;
         }
-        .panel-box.collapsed .panel-title { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-        .panel-box.collapsed .panel-body { display: none; }
         .panel-title::before {
             content: '';
             display: inline-block;
@@ -112,8 +129,6 @@
             background: #1890FF;
             border-radius: 2px;
         }
-        .panel-toggle { margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.4); transition: transform 0.3s; }
-        .panel-box.collapsed .panel-toggle { transform: rotate(-90deg); }
         .stat-row {
             display: flex;
             justify-content: space-between;
@@ -146,10 +161,11 @@
         /* ========== 地图区域 ========== */
         #map-container {
             position: absolute;
-            top: 70px; left: 324px; right: 320px; bottom: 12px;
+            top: 70px; left: 364px; right: 320px; bottom: 12px;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid rgba(255,255,255,0.08);
+            transition: left 0.35s ease, right 0.35s ease;
             z-index: 1;
         }
         #amap { width: 100%; height: 100%; }
@@ -353,8 +369,7 @@
 <!-- 左侧统计面板 -->
 <div id="left-panel">
     <div class="panel-box" style="flex:0;">
-        <div class="panel-title" onclick="togglePanel(this.parentElement)">📊 设备状态 <span class="panel-toggle">▼</span></div>
-        <div class="panel-body">
+        <div class="panel-title">📊 设备状态</div>
         <div class="stat-row">
             <span class="stat-label">在线设备</span>
             <span class="stat-value stat-online" id="online-count">0<span class="stat-unit">台</span></span>
@@ -379,14 +394,12 @@
             <span class="stat-label">今日预警</span>
             <span class="stat-value stat-alert" id="today-alert-count">0<span class="stat-unit">条</span></span>
         </div>
-        </div><!-- .panel-body -->
     </div>
     <div class="panel-box" style="flex:1;">
-        <div class="panel-title" onclick="togglePanel(this.parentElement)">📈 风险概况 <span class="panel-toggle">▼</span></div>
-        <div class="panel-body" style="height:100%;">
+        <div class="panel-title">📈 风险概况</div>
         <div id="pie-chart"></div>
-        </div><!-- .panel-body -->
     </div>
+    <div id="left-toggle" onclick="toggleLeftPanel()" title="收起/展开面板">◀</div>
 </div>
 
 <!-- 地图主体 -->
@@ -656,8 +669,6 @@
         } catch(e) { console.error(e); }
     }
 
-    function togglePanel(box) { box.classList.toggle('collapsed'); }
-
     function updatePieChart(stats) {
         const chartDom = document.getElementById('pie-chart');
         if (!chartDom) return;
@@ -899,6 +910,22 @@
     });
 
     // ========== 侧边栏折叠 ==========
+    function toggleLeftPanel() {
+        const panel = document.getElementById('left-panel');
+        const btn = document.getElementById('left-toggle');
+        const isCollapsed = panel.classList.toggle('collapsed');
+        btn.textContent = isCollapsed ? '▶' : '◀';
+        // 折叠后地图容器左边界扩张
+        const mapContainer = document.getElementById('map-container');
+        mapContainer.style.left = isCollapsed ? '46px' : '364px';
+        // 通知高德地图和ECharts resize
+        setTimeout(() => {
+            if (map) map.resize();
+            const chartDom = document.getElementById('pie-chart');
+            if (chartDom && chartDom._echart) chartDom._echart.resize();
+        }, 360);
+    }
+
     function toggleSidebar() {
         const panel = document.getElementById('right-panel');
         const btn = document.getElementById('sidebar-toggle');
