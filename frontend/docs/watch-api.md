@@ -252,16 +252,24 @@ GET /api/stats/?project_id=<optional>
 
 ```json
 {
-  "total_devices": 5,
-  "online_devices": 4,
-  "offline_devices": 1,
+  "total_devices": 8,
+  "online_devices": 0,
+  "offline_devices": 5,
   "monitoring_devices": 0,
   "unavailable_devices": 0,
   "never_reported_devices": 0,
+  "awaiting_data_devices": 3,
   "today_alerts": 0,
   "risk_stats": [...]
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total_devices` | int | 辖区内活跃设备总数 |
+| `online_devices` | int | 有效在线（90s内有上报） |
+| `offline_devices` | int | 真实离线（曾有健康数据但已超时） |
+| `awaiting_data_devices` | int | 等待首次数据（MQTT已连接但未上报健康数据） |
 
 ### 设备列表
 
@@ -290,8 +298,9 @@ GET /api/regions/tree/
 | 高风险预警 | coreTemp ≥ 39℃ | 🔴 红 |
 | 监测中 | 有数据但缺 coreTemp | 🔵 蓝 |
 | 数据不可用 | 未佩戴/无体征 | 灰蓝 |
-| 从未上报 | 设备从未发送数据 | ⚫ 灰 |
-| 离线 | 90秒无上报 | ⚫ 深灰 |
+| 离线 | 曾有健康数据但 90s 无上报 | ⚫ 深灰 |
+| 等待首次数据 | MQTT已连接但从未上报健康数据 | 🟠 橙棕 |
+| HTTP注册空壳 | HTTP注册后从未连接MQTT | — 不纳入统计 |
 
 ---
 
@@ -304,10 +313,21 @@ GET /api/regions/tree/
 - 全国通用，从项目 M2M 辖区动态读取
 - **所有时间均为北京时间**
 
+### 两种空壳设备（重要）
+系统区分两种"无健康数据"的设备：
+
+| 类型 | 特征 | 来源 | 处理 |
+|------|------|------|------|
+| **等待首次数据** | `last_report_time` 不为空，`is_online=True` | MQTT status/bind 消息上线，但未发 vital | 大屏显示，持续监测 |
+| **HTTP注册空壳** | `last_report_time` 为空，无任何 MQTT 消息 | HTTP `/api/watch/register/` 注册 | 不纳入统计，`api_stats` 仅查 `bind_status='active'` |
+
+- 判断函数：`is_awaiting_first_data()` / `is_http_registration_shell()` 见 `models.py`
+- **持续监测**：`health_data.exists()` 每次 API 调用实时查询，一旦设备发来首条 vital → 自动切换为正常/离线等状态
+
 ### 离线超时
 - 90 秒无任何 MQTT 上报 → `is_device_effectively_online()` 返回 False
 - 离线设备保留所有历史数据，显示"离线 X天X小时"
-- **last_report_time 以中继服务器最后一条数据的时间为准**
+- **last_report_time 以设备真实健康数据时间为准**，status 消息仅在上线时更新此字段（离线不覆盖）
 
 ### 项目自动切换
 - 设备上报数据时自动归入当前 recording 项目
