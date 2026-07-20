@@ -99,7 +99,11 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
+            user-select: none;
         }
+        .panel-box.collapsed .panel-title { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .panel-box.collapsed .panel-body { display: none; }
         .panel-title::before {
             content: '';
             display: inline-block;
@@ -108,6 +112,8 @@
             background: #1890FF;
             border-radius: 2px;
         }
+        .panel-toggle { margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.4); transition: transform 0.3s; }
+        .panel-box.collapsed .panel-toggle { transform: rotate(-90deg); }
         .stat-row {
             display: flex;
             justify-content: space-between;
@@ -347,7 +353,8 @@
 <!-- 左侧统计面板 -->
 <div id="left-panel">
     <div class="panel-box" style="flex:0;">
-        <div class="panel-title">📊 设备状态</div>
+        <div class="panel-title" onclick="togglePanel(this.parentElement)">📊 设备状态 <span class="panel-toggle">▼</span></div>
+        <div class="panel-body">
         <div class="stat-row">
             <span class="stat-label">在线设备</span>
             <span class="stat-value stat-online" id="online-count">0<span class="stat-unit">台</span></span>
@@ -372,10 +379,13 @@
             <span class="stat-label">今日预警</span>
             <span class="stat-value stat-alert" id="today-alert-count">0<span class="stat-unit">条</span></span>
         </div>
+        </div><!-- .panel-body -->
     </div>
     <div class="panel-box" style="flex:1;">
-        <div class="panel-title">📈 风险概况</div>
+        <div class="panel-title" onclick="togglePanel(this.parentElement)">📈 风险概况 <span class="panel-toggle">▼</span></div>
+        <div class="panel-body" style="height:100%;">
         <div id="pie-chart"></div>
+        </div><!-- .panel-body -->
     </div>
 </div>
 
@@ -645,6 +655,8 @@
             updatePieChart(data.risk_stats);
         } catch(e) { console.error(e); }
     }
+
+    function togglePanel(box) { box.classList.toggle('collapsed'); }
 
     function updatePieChart(stats) {
         const chartDom = document.getElementById('pie-chart');
