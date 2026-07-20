@@ -23,17 +23,20 @@ def is_device_effectively_online(device):
 
 
 def is_awaiting_first_data(device):
-    """MQTT已连接但尚未上报健康数据 — 设备活着，持续监测中。
-    区分于 HTTP 注册空壳：本函数要求 last_report_time 不为空（说明 MQTT 有消息过来）。
+    """MQTT已激活但尚未上报健康数据 — 设备活着，持续监测中。
+    条件：已激活 + 无健康数据 + MQTT 有消息过来（last_report_time 不为空）。
+    区分于 HTTP 注册空壳：本函数要求 bind_status='active'。
     """
-    return not device.health_data.exists() and device.last_report_time is not None
+    return (not device.health_data.exists()
+            and device.bind_status == 'active'
+            and device.last_report_time is not None)
 
 
 def is_http_registration_shell(device):
-    """HTTP 注册接口产生的空壳 — 从未通过 MQTT 上报过任何消息，纯注册记录。
-    last_report_time 为空、无健康数据、无位置轨迹。
+    """HTTP 注册接口产生的空壳 — bind_status='pending' 且无健康数据。
+    无论 last_report_time 是否有值（HTTP heartbeat 可能误设），只要未激活就是空壳。
     """
-    return not device.health_data.exists() and device.last_report_time is None
+    return not device.health_data.exists() and device.bind_status == 'pending'
 
 
 def get_device_risk_level(device):
